@@ -1,0 +1,10 @@
+import {Router} from 'express';
+import {rateLimit} from 'express-rate-limit';
+import {login,me} from '../controllers/auth.controller.js';
+import {authenticate} from '../middleware/auth.js';
+const router=Router();
+const limiter=rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:true,legacyHeaders:false,message:{message:'Quá nhiều lần đăng nhập, thử lại sau'}});
+router.post('/login',limiter,login);
+router.post('/admin/login',limiter,login);
+router.get('/me',authenticate,me);
+export default router;
