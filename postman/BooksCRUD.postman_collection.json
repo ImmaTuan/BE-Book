@@ -39,9 +39,39 @@
     {
       "key": "customer_password",
       "value": "Customer123456!"
+    },
+    {
+      "key": "register_email",
+      "value": "postman.customer@bookstore.local"
+    },
+    {
+      "key": "register_password",
+      "value": "Postman123456!"
+    },
+    {
+      "key": "profile_user_id",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "A0 Register customer",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/register",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "auth": {"type":"noauth"},
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"email\": \"{{register_email}}\",\n  \"password\": \"{{register_password}}\"\n}",
+          "options": {"raw":{"language":"json"}}
+        }
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+        "if(pm.response.code===201){const u=pm.response.json().data.user;pm.expect(u.role).to.eql(\"customer\");pm.collectionVariables.set(\"profile_user_id\",u.id);}"
+      ]}}]
+    },
     {
       "name": "A1 Chưa đăng nhập -> 401",
       "request": {
@@ -231,6 +261,44 @@
           }
         }
       ]
+    },
+    {
+      "name": "A6b Customer update own profile",
+      "request": {
+        "method": "PATCH",
+        "url": "{{base_url}}/auth/me/profile",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "auth": {
+          "type": "bearer",
+          "bearer": [{"key":"token","value":"{{customer_token}}","type":"string"}]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"first_name\": \"Customer\",\n  \"last_name\": \"Postman\",\n  \"phone\": \"0912345678\",\n  \"email\": \"customer.contact@example.com\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\"\n}",
+          "options": {"raw":{"language":"json"}}
+        }
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.be.a(\"number\");"
+      ]}}]
+    },
+    {
+      "name": "A7 Admin update customer profile",
+      "request": {
+        "method": "PATCH",
+        "url": "{{base_url}}/admin/users/{{profile_user_id}}/profile",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Customer\",\n  \"phone\": \"0912345678\",\n  \"email\": \"profile.customer@example.com\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"loyalty_points\": 10,\n  \"membership_tier\": \"bronze\"\n}",
+          "options": {"raw":{"language":"json"}}
+        }
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
+      ]}}]
     },
     {
       "name": "01 Health",

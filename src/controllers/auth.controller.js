@@ -3,6 +3,22 @@ import jwt from 'jsonwebtoken';
 import {pool} from '../config/db.js';
 import {secret} from '../config/auth.js';
 import {fail} from '../validation.js';
+const registrationFields=['full_name','email','password'];
+export async function register(req,res){
+ const b=req.body;
+ if(!b||typeof b!=='object'||Array.isArray(b))fail('Body phải là JSON object');
+ if(Object.keys(b).some(k=>!registrationFields.includes(k)))fail('Chỉ nhận full_name, email và password');
+ const full_name=typeof b.full_name==='string'?b.full_name.trim():'';
+ const email=typeof b.email==='string'?b.email.trim().toLowerCase():'';
+ if(!full_name||full_name.length>255)fail('full_name là bắt buộc và tối đa 255 ký tự');
+ if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Email không hợp lệ');
+ if(typeof b.password!=='string'||b.password.length<8||b.password.length>200)fail('Mật khẩu phải có từ 8 đến 200 ký tự');
+ const password_hash=await bcrypt.hash(b.password,12);
+ try{
+  const [result]=await pool.execute("INSERT INTO users (full_name,email,password_hash,role,is_active) VALUES (?,?,?,'customer',1)",[full_name,email,password_hash]);
+  res.status(201).json({message:'Đăng ký thành công',data:{user:{id:result.insertId,full_name,email,role:'customer'}}});
+ }catch(e){if(e.code==='ER_DUP_ENTRY')fail('Email đã được sử dụng',409);throw e;}
+}
 // Valid fallback hash makes unknown-account checks run bcrypt too.
 const fallbackHash=await bcrypt.hash('not-a-real-account-password',12);
 export async function login(req,res){const b=req.body;if(!b||typeof b!=='object'||Array.isArray(b))fail('Body phải là JSON object');if(Object.keys(b).some(k=>!['email','password'].includes(k)))fail('Chỉ nhận email và password');if(typeof b.email!=='string'||b.email.length>254||typeof b.password!=='string'||!b.password||b.password.length>200)fail('Nhập email và mật khẩu hợp lệ');
