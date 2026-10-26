@@ -14,10 +14,14 @@ export async function register(req,res){
  if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Email không hợp lệ');
  if(typeof b.password!=='string'||b.password.length<8||b.password.length>200)fail('Mật khẩu phải có từ 8 đến 200 ký tự');
  const password_hash=await bcrypt.hash(b.password,12);
+ const connection=await pool.getConnection();
  try{
-  const [result]=await pool.execute("INSERT INTO users (full_name,email,password_hash,role,is_active) VALUES (?,?,?,'customer',1)",[full_name,email,password_hash]);
+  await connection.beginTransaction();
+  const [result]=await connection.execute("INSERT INTO users (full_name,email,password_hash,role,is_active) VALUES (?,?,?,'customer',1)",[full_name,email,password_hash]);
+  await connection.execute('INSERT INTO profiles (user_id) VALUES (?)',[result.insertId]);
+  await connection.commit();
   res.status(201).json({message:'Đăng ký thành công',data:{user:{id:result.insertId,full_name,email,role:'customer'}}});
- }catch(e){if(e.code==='ER_DUP_ENTRY')fail('Email đã được sử dụng',409);throw e;}
+ }catch(e){await connection.rollback();if(e.code==='ER_DUP_ENTRY')fail('Email đã được sử dụng',409);throw e;}finally{connection.release();}
 }
 // Valid fallback hash makes unknown-account checks run bcrypt too.
 const fallbackHash=await bcrypt.hash('not-a-real-account-password',12);

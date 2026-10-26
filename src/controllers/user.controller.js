@@ -56,6 +56,25 @@ async function saveCustomerProfile(userId,data){
  }catch(e){await connection.rollback();throw e;}finally{connection.release();}
 }
 
+async function readCustomerProfile(userId){
+ const [rows]=await pool.execute('SELECT * FROM profiles WHERE user_id = ?',[userId]);
+ if(!rows.length)fail('ChÆ°a tÃ¬m tháº¥y profile cho user nÃ y',404);
+ return rows[0];
+}
+
+export async function getCustomerProfile(req,res){
+ const userId=id(req.params.id);
+ const [users]=await pool.execute('SELECT id,role FROM users WHERE id = ?',[userId]);
+ if(!users.length)fail('KhÃ´ng tÃ¬m tháº¥y user',404);
+ if(users[0].role!=='customer')fail('Chá»‰ Ä‘Æ°á»£c xem profile cá»§a user cÃ³ role customer',403);
+ res.json({data:{profile:await readCustomerProfile(userId)}});
+}
+
+export async function getOwnProfile(req,res){
+ if(req.user.role!=='customer')fail('Chá»‰ tÃ i khoáº£n customer Ä‘Æ°á»£c xem profile',403);
+ res.json({data:{profile:await readCustomerProfile(req.user.id)}});
+}
+
 export async function updateCustomerProfile(req,res){
  const userId=id(req.params.id);
  const data=validateProfile(req.body);
