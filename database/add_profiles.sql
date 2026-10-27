@@ -30,25 +30,31 @@ CREATE TABLE `profiles` (
     CHECK (`membership_tier` IN ('bronze', 'silver', 'gold', 'platinum'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tạo hồ sơ trống cho khách hiện có, không tự suy đoán họ/tên từ full_name.
--- Email/SĐT NULL dùng thông tin users hiện có; không sao chép để tránh dữ liệu lỗi thời.
-INSERT INTO `profiles` (`user_id`)
-SELECT u.`id`
+-- Final profile shape: one full_name field, with login email kept in users.
+ALTER TABLE `profiles`
+  ADD COLUMN `full_name` VARCHAR(255) NULL AFTER `user_id`,
+  ADD COLUMN `shipping_address` TEXT NULL AFTER `phone`;
+
+UPDATE `profiles` p
+JOIN `users` u ON u.`id` = p.`user_id`
+SET p.`full_name` = COALESCE(
+  NULLIF(TRIM(CONCAT_WS(' ', p.`last_name`, p.`first_name`)), ''),
+  u.`full_name`
+);
+
+ALTER TABLE `profiles`
+  DROP COLUMN `first_name`,
+  DROP COLUMN `last_name`,
+  DROP COLUMN `email`;
+
+-- Tạo hồ sơ cho khách hiện có và đồng bộ tên từ users.full_name.
+-- Email đăng nhập chỉ được lưu trong users; profile không có trường email.
+INSERT INTO `profiles` (`user_id`, `full_name`)
+SELECT u.`id`, u.`full_name`
 FROM `users` u
 WHERE u.`role` = 'customer'
   AND NOT EXISTS (SELECT 1 FROM `profiles` p WHERE p.`user_id` = u.`id`);
 
--- QUY TẮC CHO BACKEND KHI BỔ SUNG API PROFILE:
--- 1. Đăng ký khách mới: tạo users + profiles trong cùng transaction.
--- 2. Lấy user_id từ phiên đăng nhập, chỉ cho khách xem/sửa hồ sơ của mình.
--- 3. Khách được sửa: first_name, last_name, phone, email, gender, date_of_birth.
---    Khách KHÔNG được sửa user_id, loyalty_points, membership_tier.
--- 4. Kiểm tra định dạng email/SĐT, ngày sinh hợp lệ và không ở tương lai.
--- 5. Hạng bronze/silver/gold/platinum là bộ giá trị đề xuất; chưa quy định ngưỡng điểm.
---    Hệ thống/Admin cập nhật điểm và hạng; bảng này chưa có lịch sử cộng/trừ điểm.
--- 6. Email đăng nhập chuẩn vẫn là users.email (UNIQUE). Đổi email liên hệ không đổi login.
---    Nếu muốn đổi email login: dùng luồng xác minh riêng, kiểm tra trùng users.email.
--- 7. Tên hồ sơ hiển thị từ last_name + first_name; khi chưa nhập thì dùng users.full_name.
--- 8. Truy vấn email liên hệ: COALESCE(profiles.email, users.email); tương tự phone.
---    Dùng NULL để trở về email/SĐT tài khoản, không dùng chuỗi rỗng.
--- 9. File này CHỈ thêm bảng/hồ sơ trống, chưa thêm API vào backend và chưa sửa file draw.io.
+-- Profile stores the customer name and shipping address. Login email remains in users.email.
+-- Customers may edit full_name, phone, gender, date_of_birth, and shipping_address.
+-- Only the system/admin may edit loyalty_points and membership_tier.

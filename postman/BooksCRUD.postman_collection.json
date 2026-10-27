@@ -13,6 +13,10 @@
       "value": ""
     },
     {
+      "key": "new_category_id",
+      "value": ""
+    },
+    {
       "key": "book_id",
       "value": ""
     },
@@ -290,7 +294,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"first_name\": \"Customer\",\n  \"last_name\": \"Postman\",\n  \"phone\": \"0912345678\",\n  \"email\": \"customer.contact@example.com\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\"\n}",
+          "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"phone\": \"0912345678\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"shipping_address\": \"123 Nguyen Hue, District 1, Ho Chi Minh City\"\n}",
           "options": {"raw":{"language":"json"}}
         }
       },
@@ -319,7 +323,7 @@
         "header": [{"key":"Content-Type","value":"application/json"}],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Customer\",\n  \"phone\": \"0912345678\",\n  \"email\": \"profile.customer@example.com\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"loyalty_points\": 10,\n  \"membership_tier\": \"bronze\"\n}",
+          "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"phone\": \"0912345678\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"shipping_address\": \"123 Nguyen Hue, District 1, Ho Chi Minh City\",\n  \"loyalty_points\": 10,\n  \"membership_tier\": \"bronze\"\n}",
           "options": {"raw":{"language":"json"}}
         }
       },
@@ -327,6 +331,44 @@
         "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
         "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
       ]}}]
+    },
+    {
+      "name": "C1 Create category",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/admin/categories",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+        "if(pm.response.code===201)pm.collectionVariables.set(\"new_category_id\",pm.response.json().data.id);"
+      ]}}]
+    },
+    {
+      "name": "C2 Get category",
+      "request": {"method":"GET","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "C3 Update category",
+      "request": {
+        "method": "PATCH",
+        "url": "{{base_url}}/admin/categories/{{new_category_id}}",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman updated {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "C4 Delete category",
+      "request": {"method":"DELETE","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"]}}]
+    },
+    {
+      "name": "C5 Deleted category returns 404",
+      "request": {"method":"GET","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 404\",()=>pm.response.to.have.status(404));"]}}]
     },
     {
       "name": "01 Health",

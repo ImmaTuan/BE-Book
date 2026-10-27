@@ -18,7 +18,7 @@ export async function register(req,res){
  try{
   await connection.beginTransaction();
   const [result]=await connection.execute("INSERT INTO users (full_name,email,password_hash,role,is_active) VALUES (?,?,?,'customer',1)",[full_name,email,password_hash]);
-  await connection.execute('INSERT INTO profiles (user_id) VALUES (?)',[result.insertId]);
+  await connection.execute('INSERT INTO profiles (user_id,full_name) VALUES (?,?)',[result.insertId,full_name]);
   await connection.commit();
   res.status(201).json({message:'Đăng ký thành công',data:{user:{id:result.insertId,full_name,email,role:'customer'}}});
  }catch(e){await connection.rollback();if(e.code==='ER_DUP_ENTRY')fail('Email đã được sử dụng',409);throw e;}finally{connection.release();}
