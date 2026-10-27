@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "CRUD Sách + Login Admin",
+    "name": "Bookstore API - Books, Categories, Auth and Profiles",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -357,6 +357,16 @@
         "url": "{{base_url}}/admin/categories/{{new_category_id}}",
         "header": [{"key":"Content-Type","value":"application/json"}],
         "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman updated {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "C3b Update category with PUT",
+      "request": {
+        "method": "PUT",
+        "url": "{{base_url}}/admin/categories/{{new_category_id}}",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman replaced {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
       },
       "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
     },
