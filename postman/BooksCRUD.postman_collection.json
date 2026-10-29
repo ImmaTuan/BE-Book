@@ -21,11 +21,39 @@
       "value": ""
     },
     {
+      "key": "public_book_id",
+      "value": ""
+    },
+    {
+      "key": "order_id",
+      "value": ""
+    },
+    {
+      "key": "ghn_province_id",
+      "value": ""
+    },
+    {
+      "key": "ghn_province_name",
+      "value": ""
+    },
+    {
+      "key": "ghn_ward_name",
+      "value": ""
+    },
+    {
       "key": "admin_token",
       "value": ""
     },
     {
+      "key": "admin_refresh_token",
+      "value": ""
+    },
+    {
       "key": "customer_token",
+      "value": ""
+    },
+    {
+      "key": "customer_refresh_token",
       "value": ""
     },
     {
@@ -129,7 +157,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-              "if(pm.response.code===200) pm.collectionVariables.set(\"admin_token\",pm.response.json().data.token);"
+              "if(pm.response.code===200){const d=pm.response.json().data;pm.collectionVariables.set(\"admin_token\",d.access_token);pm.collectionVariables.set(\"admin_refresh_token\",d.refresh_token);}"
             ]
           }
         }
@@ -231,7 +259,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-              "if(pm.response.code===200) pm.collectionVariables.set(\"customer_token\",pm.response.json().data.token);"
+              "if(pm.response.code===200){const d=pm.response.json().data;pm.collectionVariables.set(\"customer_token\",d.access_token);pm.collectionVariables.set(\"customer_refresh_token\",d.refresh_token);}"
             ]
           }
         }
@@ -331,6 +359,140 @@
         "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
         "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
       ]}}]
+    },
+    {
+      "name": "A8 Refresh customer tokens",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/refresh",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
+        "auth": {"type":"noauth"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+        "if(pm.response.code===200){const d=pm.response.json().data;pm.collectionVariables.set(\"customer_token\",d.access_token);pm.collectionVariables.set(\"customer_refresh_token\",d.refresh_token);}"
+      ]}}]
+    },
+    {
+      "name": "A9 Logout customer session",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/logout",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
+        "auth": {"type":"noauth"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"
+      ]}}]
+    },
+    {
+      "name": "A10 Revoked refresh token returns 401",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/refresh",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
+        "auth": {"type":"noauth"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 401\",()=>pm.response.to.have.status(401));",
+        "pm.collectionVariables.unset(\"customer_refresh_token\");"
+      ]}}]
+    },
+    {
+      "name": "P1 Public list books",
+      "request": {"method":"GET","url":"{{base_url}}/books?page=1&limit=20","header":[],"auth":{"type":"noauth"}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+        "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"public_book_id\",pm.response.json().data[0].id);"
+      ]}}]
+    },
+    {
+      "name": "P2 Public book detail",
+      "request": {"method":"GET","url":"{{base_url}}/books/{{public_book_id}}","header":[],"auth":{"type":"noauth"}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200 or no active book\",()=>pm.expect([200,404]).to.include(pm.response.code));"
+      ]}}]
+    },
+    {
+      "name": "P3 Public list categories",
+      "request": {"method":"GET","url":"{{base_url}}/categories","header":[],"auth":{"type":"noauth"}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+      ]}}]
+    },
+    {
+      "name": "H1 GHN list provinces",
+      "request": {"method":"GET","url":"{{base_url}}/shipping/ghn/provinces","header":[],"auth":{"type":"noauth"}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"GHN configured or intentionally unavailable\",()=>pm.expect([200,503]).to.include(pm.response.code));",
+        "if(pm.response.code===200&&pm.response.json().data.length){const p=pm.response.json().data[0];pm.collectionVariables.set(\"ghn_province_id\",p._id);pm.collectionVariables.set(\"ghn_province_name\",p.name);}"
+      ]}}]
+    },
+    {
+      "name": "H2 GHN list wards for selected province",
+      "request": {"method":"GET","url":"{{base_url}}/shipping/ghn/provinces/{{ghn_province_id}}/wards","header":[],"auth":{"type":"noauth"}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"GHN configured, unavailable, or province not selected\",()=>pm.expect([200,404,503]).to.include(pm.response.code));",
+        "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"ghn_ward_name\",pm.response.json().data[0].name);"
+      ]}}]
+    },
+    {
+      "name": "O1 Customer create order",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/orders",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"recipient_name\": \"Postman Customer\",\n  \"recipient_phone\": \"0912345678\",\n  \"shipping_address\": \"1 {{ghn_ward_name}}, {{ghn_province_name}}\",\n  \"to_ward_name\": \"{{ghn_ward_name}}\",\n  \"to_province_name\": \"{{ghn_province_name}}\",\n  \"is_new_to_address\": true,\n  \"items\": [{\"book_id\": {{public_book_id}}, \"quantity\": 1}]\n}","options":{"raw":{"language":"json"}}},
+        "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+        "if(pm.response.code===201)pm.collectionVariables.set(\"order_id\",pm.response.json().data.id);"
+      ]}}]
+    },
+    {
+      "name": "O2 Customer list own orders",
+      "request": {"method":"GET","url":"{{base_url}}/orders?page=1&limit=20","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "O3 Customer get own order",
+      "request": {"method":"GET","url":"{{base_url}}/orders/{{order_id}}","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "O4 Admin list orders",
+      "request": {"method":"GET","url":"{{base_url}}/admin/orders?page=1&limit=20&status=pending","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "O5 Admin get order",
+      "request": {"method":"GET","url":"{{base_url}}/admin/orders/{{order_id}}","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "O5a Admin create or retry GHN shipment",
+      "request": {"method":"POST","url":"{{base_url}}/admin/orders/{{order_id}}/shipment","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Created, already created, or GHN not configured\",()=>pm.expect([201,409,502,503]).to.include(pm.response.code));"]}}]
+    },
+    {
+      "name": "O6 Admin cancel order and restore stock",
+      "request": {
+        "method": "PATCH",
+        "url": "{{base_url}}/admin/orders/{{order_id}}/status",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"status\": \"cancelled\"\n}","options":{"raw":{"language":"json"}}},
+        "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "O7 Admin refresh GHN shipment status",
+      "request": {"method":"GET","url":"{{base_url}}/admin/orders/{{order_id}}/shipment","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Shipment available or GHN not configured\",()=>pm.expect([200,404,502,503]).to.include(pm.response.code));"]}}]
     },
     {
       "name": "C1 Create category",

@@ -73,7 +73,6 @@ export async function getCustomerProfile(req,res){
 }
 
 export async function getOwnProfile(req,res){
- if(req.user.role!=='customer')fail('Chá»‰ tÃ i khoáº£n customer Ä‘Æ°á»£c xem profile',403);
  res.json({data:{profile:await readCustomerProfile(req.user.id)}});
 }
 
@@ -86,7 +85,6 @@ export async function updateCustomerProfile(req,res){
 
 export async function updateOwnProfile(req,res){
  const data=validateProfile(req.body,customerFields);
- if(req.user.role!=='customer')fail('Chỉ tài khoản customer được tự cập nhật profile',403);
  const profile=await saveCustomerProfile(req.user.id,data);
  res.json({message:'Đã cập nhật profile của bạn',data:{profile}});
 }

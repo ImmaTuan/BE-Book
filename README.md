@@ -28,16 +28,28 @@ Seed tạo 2 tài khoản theo .env, password đã băm bcrypt. Không đổi m�
 
 ## Đăng nhập và phân quyền
 
-POST /api/auth/admin/login với JSON email, password. Sai mật khẩu/khóa tài khoản: 401; đúng tài khoản nhưng role customer: 403, "Bạn không có quyền truy cập trang Admin". Admin hợp lệ nhận data.token và data.user.
+POST /api/auth/admin/login với JSON email, password. Sai mật khẩu/khóa tài khoản: 401; đúng tài khoản nhưng role customer: 403. Login trả data.access_token (15 phút), data.refresh_token (30 ngày) và data.user. Trường data.token được giữ tương thích với client cũ.
 
-POST /api/auth/login là login chung cho cả Admin/khách để test; khách nhận token nhưng vẫn không gọi được /api/admin/*. GET /api/auth/me cần token, trả tài khoản hiện tại. Token HS256 có hạn 2 giờ. Mỗi request kiểm tra lại role/is_active từ DB, nên hạ quyền/khóa tài khoản có hiệu lực ngay cả khi token chưa hết hạn. Không nhận role/user_id từ body khi login.
+POST /api/auth/login là login chung cho cả Admin/khách để test; khách vẫn không gọi được /api/admin/*. POST /api/auth/refresh nhận JSON `{"refresh_token":"..."}` và trả cặp token mới; refresh token cũ bị xoay và không dùng lại được. POST /api/auth/logout nhận refresh_token để thu hồi phiên. GET /api/auth/me cần access token, trả tài khoản hiện tại. Mỗi request kiểm tra lại role/is_active từ DB. Không nhận role/user_id từ body khi login.
 
 Gửi header cho mọi /api/admin/*:
 ```text
 Authorization: Bearer <data.token>
 ```
 
-Không token/token lỗi/hết hạn: 401. Có token khách thường: 403. Đúng Admin: cho truy cập. Health không yêu cầu login. Login giới hạn 30 lần/15 phút/IP. Logout phía client xóa token; chưa có danh sách thu hồi token/refresh token.
+Không token/token lỗi/hết hạn: 401. Có token khách thường: 403. Đúng Admin: cho truy cập. Health không yêu cầu login. Login/refresh/logout giới hạn 30 lần/15 phút/IP. Chạy `database/add_user_login.sql` một lần để tạo bảng lưu hash refresh token.
+
+## API đơn hàng
+
+Customer gọi `POST /api/orders` để đặt đơn, `GET /api/orders` để xem danh sách đơn của mình, `GET /api/orders/:id` để xem chi tiết đơn của mình. Body tạo đơn gồm `recipient_name`, `recipient_phone`, `shipping_address` và `items` (mảng `{ "book_id": 1, "quantity": 2 }`). Giá sách được lấy từ database; tồn kho được kiểm tra và trừ trong transaction.
+
+Admin gọi `GET /api/admin/orders` (hỗ trợ `page`, `limit`, `status`), `GET /api/admin/orders/:id`, `POST /api/admin/orders/:id/shipment` để tạo/thử lại vận đơn, `GET /api/admin/orders/:id/shipment` để đồng bộ trạng thái từ GHN và `PATCH /api/admin/orders/:id/status` để đổi trạng thái nội bộ. Hủy đơn đã có vận đơn sẽ gọi GHN hủy trước; hủy đơn chưa giao sẽ hoàn tồn kho.
+
+Điền `GHN_TOKEN`, `GHN_SHOP_ID` và các cấu hình trong `.env` (tham khảo `.env.example`). Tài khoản staging cần `GHN_API_URL=https://dev-online-gateway.ghn.vn`; production dùng `https://online-gateway.ghn.vn`. Customer có thể lấy danh sách tỉnh/phường qua `GET /api/shipping/ghn/provinces` và `GET /api/shipping/ghn/provinces/:provinceId/wards`, rồi gửi `to_ward_name` và `to_province_name`; địa chỉ hành chính cũ cần thêm `to_district_name` và `is_new_to_address: false`. GHN yêu cầu token + ShopId ở header, địa chỉ, dịch vụ, kích thước kiện và `required_note` khi tạo vận đơn. Nếu chưa có credentials, đơn nội bộ vẫn được tạo với `ghn_status: not_configured`.
+
+Để nhận trạng thái tự động, đặt `GHN_WEBHOOK_SECRET` trong `.env`, rồi cấu hình GHN webhook URL là `/api/webhooks/ghn/orders` với custom header `x-ghn-webhook-secret` có cùng giá trị. GHN cũng hỗ trợ admin đồng bộ trạng thái thủ công qua API shipment ở trên.
+
+Chạy `database/add_orders.sql` nếu database chưa có bảng `orders`/`order_items`. Với database đã có các bảng đó từ schema cũ, chạy một lần `database/add_ghn_order_fields.sql` để thêm trường địa chỉ GHN và khối lượng snapshot sản phẩm.
 
 ## API CRUD sách (cần token Admin)
 
