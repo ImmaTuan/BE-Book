@@ -83,6 +83,26 @@
     {
       "key": "profile_user_id",
       "value": ""
+    },
+    {
+      "key": "publisher_id",
+      "value": ""
+    },
+    {
+      "key": "new_publisher_id",
+      "value": ""
+    },
+    {
+      "key": "publisher_book_id",
+      "value": ""
+    },
+    {
+      "key": "author_id",
+      "value": ""
+    },
+    {
+      "key": "new_author_id",
+      "value": ""
     }
   ],
   "item": [
@@ -91,18 +111,37 @@
       "request": {
         "method": "POST",
         "url": "{{base_url}}/auth/register",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "auth": {"type":"noauth"},
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"email\": \"{{register_email}}\",\n  \"password\": \"{{register_password}}\"\n}",
-          "options": {"raw":{"language":"json"}}
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
-        "if(pm.response.code===201){const u=pm.response.json().data.user;pm.expect(u.role).to.eql(\"customer\");pm.collectionVariables.set(\"profile_user_id\",u.id);}"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+              "if(pm.response.code===201){const u=pm.response.json().data.user;pm.expect(u.role).to.eql(\"customer\");pm.collectionVariables.set(\"profile_user_id\",u.id);}"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A1 Chưa đăng nhập -> 401",
@@ -302,34 +341,71 @@
         "header": [],
         "auth": {
           "type": "bearer",
-          "bearer": [{"key":"token","value":"{{customer_token}}","type":"string"}]
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer_token}}",
+              "type": "string"
+            }
+          ]
         }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.be.a(\"number\");"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.be.a(\"number\");"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A6b Customer update own profile",
       "request": {
         "method": "PATCH",
         "url": "{{base_url}}/auth/me/profile",
-        "header": [{"key":"Content-Type","value":"application/json"}],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "auth": {
           "type": "bearer",
-          "bearer": [{"key":"token","value":"{{customer_token}}","type":"string"}]
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer_token}}",
+              "type": "string"
+            }
+          ]
         },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"phone\": \"0912345678\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"shipping_address\": \"123 Nguyen Hue, District 1, Ho Chi Minh City\"\n}",
-          "options": {"raw":{"language":"json"}}
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.be.a(\"number\");"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.be.a(\"number\");"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A7a Admin get customer profile",
@@ -338,209 +414,693 @@
         "url": "{{base_url}}/admin/users/{{profile_user_id}}/profile",
         "header": []
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A7 Admin update customer profile",
       "request": {
         "method": "PATCH",
         "url": "{{base_url}}/admin/users/{{profile_user_id}}/profile",
-        "header": [{"key":"Content-Type","value":"application/json"}],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"phone\": \"0912345678\",\n  \"gender\": \"undisclosed\",\n  \"date_of_birth\": \"1995-01-15\",\n  \"shipping_address\": \"123 Nguyen Hue, District 1, Ho Chi Minh City\",\n  \"loyalty_points\": 10,\n  \"membership_tier\": \"bronze\"\n}",
-          "options": {"raw":{"language":"json"}}
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200)pm.expect(pm.response.json().data.profile.user_id).to.eql(Number(pm.collectionVariables.get(\"profile_user_id\")));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A8 Refresh customer tokens",
       "request": {
         "method": "POST",
         "url": "{{base_url}}/auth/refresh",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
-        "auth": {"type":"noauth"}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "noauth"
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200){const d=pm.response.json().data;pm.collectionVariables.set(\"customer_token\",d.access_token);pm.collectionVariables.set(\"customer_refresh_token\",d.refresh_token);}"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const d=pm.response.json().data;pm.collectionVariables.set(\"customer_token\",d.access_token);pm.collectionVariables.set(\"customer_refresh_token\",d.refresh_token);}"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A9 Logout customer session",
       "request": {
         "method": "POST",
         "url": "{{base_url}}/auth/logout",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
-        "auth": {"type":"noauth"}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "noauth"
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "A10 Revoked refresh token returns 401",
       "request": {
         "method": "POST",
         "url": "{{base_url}}/auth/refresh",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}","options":{"raw":{"language":"json"}}},
-        "auth": {"type":"noauth"}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"{{customer_refresh_token}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "noauth"
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 401\",()=>pm.response.to.have.status(401));",
-        "pm.collectionVariables.unset(\"customer_refresh_token\");"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\",()=>pm.response.to.have.status(401));",
+              "pm.collectionVariables.unset(\"customer_refresh_token\");"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "P1 Public list books",
-      "request": {"method":"GET","url":"{{base_url}}/books?page=1&limit=20","header":[],"auth":{"type":"noauth"}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
-        "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"public_book_id\",pm.response.json().data[0].id);"
-      ]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/books?page=1&limit=20",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"public_book_id\",pm.response.json().data[0].id);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "P2 Public book detail",
-      "request": {"method":"GET","url":"{{base_url}}/books/{{public_book_id}}","header":[],"auth":{"type":"noauth"}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200 or no active book\",()=>pm.expect([200,404]).to.include(pm.response.code));"
-      ]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/books/{{public_book_id}}",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200 or no active book\",()=>pm.expect([200,404]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "P3 Public list categories",
-      "request": {"method":"GET","url":"{{base_url}}/categories","header":[],"auth":{"type":"noauth"}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
-      ]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/categories",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "H1 GHN list provinces",
-      "request": {"method":"GET","url":"{{base_url}}/shipping/ghn/provinces","header":[],"auth":{"type":"noauth"}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"GHN configured or intentionally unavailable\",()=>pm.expect([200,503]).to.include(pm.response.code));",
-        "if(pm.response.code===200&&pm.response.json().data.length){const p=pm.response.json().data[0];pm.collectionVariables.set(\"ghn_province_id\",p._id);pm.collectionVariables.set(\"ghn_province_name\",p.name);}"
-      ]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/shipping/ghn/provinces",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"GHN configured or intentionally unavailable\",()=>pm.expect([200,503]).to.include(pm.response.code));",
+              "if(pm.response.code===200&&pm.response.json().data.length){const p=pm.response.json().data[0];pm.collectionVariables.set(\"ghn_province_id\",p._id);pm.collectionVariables.set(\"ghn_province_name\",p.name);}"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "H2 GHN list wards for selected province",
-      "request": {"method":"GET","url":"{{base_url}}/shipping/ghn/provinces/{{ghn_province_id}}/wards","header":[],"auth":{"type":"noauth"}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"GHN configured, unavailable, or province not selected\",()=>pm.expect([200,404,503]).to.include(pm.response.code));",
-        "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"ghn_ward_name\",pm.response.json().data[0].name);"
-      ]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/shipping/ghn/provinces/{{ghn_province_id}}/wards",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"GHN configured, unavailable, or province not selected\",()=>pm.expect([200,404,503]).to.include(pm.response.code));",
+              "if(pm.response.code===200&&pm.response.json().data.length)pm.collectionVariables.set(\"ghn_ward_name\",pm.response.json().data[0].name);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O1 Customer create order",
       "request": {
         "method": "POST",
         "url": "{{base_url}}/orders",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"recipient_name\": \"Postman Customer\",\n  \"recipient_phone\": \"0912345678\",\n  \"shipping_address\": \"1 {{ghn_ward_name}}, {{ghn_province_name}}\",\n  \"to_ward_name\": \"{{ghn_ward_name}}\",\n  \"to_province_name\": \"{{ghn_province_name}}\",\n  \"is_new_to_address\": true,\n  \"items\": [{\"book_id\": {{public_book_id}}, \"quantity\": 1}]\n}","options":{"raw":{"language":"json"}}},
-        "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recipient_name\": \"Postman Customer\",\n  \"recipient_phone\": \"0912345678\",\n  \"shipping_address\": \"1 {{ghn_ward_name}}, {{ghn_province_name}}\",\n  \"to_ward_name\": \"{{ghn_ward_name}}\",\n  \"to_province_name\": \"{{ghn_province_name}}\",\n  \"is_new_to_address\": true,\n  \"items\": [{\"book_id\": {{public_book_id}}, \"quantity\": 1}]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer_token}}",
+              "type": "string"
+            }
+          ]
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
-        "if(pm.response.code===201)pm.collectionVariables.set(\"order_id\",pm.response.json().data.id);"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+              "if(pm.response.code===201)pm.collectionVariables.set(\"order_id\",pm.response.json().data.id);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O2 Customer list own orders",
-      "request": {"method":"GET","url":"{{base_url}}/orders?page=1&limit=20","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/orders?page=1&limit=20",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O3 Customer get own order",
-      "request": {"method":"GET","url":"{{base_url}}/orders/{{order_id}}","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{customer_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/orders/{{order_id}}",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O4 Admin list orders",
-      "request": {"method":"GET","url":"{{base_url}}/admin/orders?page=1&limit=20&status=pending","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/admin/orders?page=1&limit=20&status=pending",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O5 Admin get order",
-      "request": {"method":"GET","url":"{{base_url}}/admin/orders/{{order_id}}","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/admin/orders/{{order_id}}",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O5a Admin create or retry GHN shipment",
-      "request": {"method":"POST","url":"{{base_url}}/admin/orders/{{order_id}}/shipment","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Created, already created, or GHN not configured\",()=>pm.expect([201,409,502,503]).to.include(pm.response.code));"]}}]
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/admin/orders/{{order_id}}/shipment",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Created, already created, or GHN not configured\",()=>pm.expect([201,409,502,503]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O6 Admin cancel order and restore stock",
       "request": {
         "method": "PATCH",
         "url": "{{base_url}}/admin/orders/{{order_id}}/status",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"status\": \"cancelled\"\n}","options":{"raw":{"language":"json"}}},
-        "auth": {"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"cancelled\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "O7 Admin refresh GHN shipment status",
-      "request": {"method":"GET","url":"{{base_url}}/admin/orders/{{order_id}}/shipment","header":[],"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]}},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Shipment available or GHN not configured\",()=>pm.expect([200,404,502,503]).to.include(pm.response.code));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/admin/orders/{{order_id}}/shipment",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Shipment available or GHN not configured\",()=>pm.expect([200,404,502,503]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C1 Create category",
       "request": {
         "method": "POST",
         "url": "{{base_url}}/admin/categories",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman {{$guid}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
-        "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
-        "if(pm.response.code===201)pm.collectionVariables.set(\"new_category_id\",pm.response.json().data.id);"
-      ]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\",()=>pm.response.to.have.status(201));",
+              "if(pm.response.code===201)pm.collectionVariables.set(\"new_category_id\",pm.response.json().data.id);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C2 Get category",
-      "request": {"method":"GET","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/admin/categories/{{new_category_id}}",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C3 Update category",
       "request": {
         "method": "PATCH",
         "url": "{{base_url}}/admin/categories/{{new_category_id}}",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman updated {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman updated {{$guid}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C3b Update category with PUT",
       "request": {
         "method": "PUT",
         "url": "{{base_url}}/admin/categories/{{new_category_id}}",
-        "header": [{"key":"Content-Type","value":"application/json"}],
-        "body": {"mode":"raw","raw":"{\n  \"name\": \"Postman replaced {{$guid}}\"\n}","options":{"raw":{"language":"json"}}}
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman replaced {{$guid}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\",()=>pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C4 Delete category",
-      "request": {"method":"DELETE","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"]}}]
+      "request": {
+        "method": "DELETE",
+        "url": "{{base_url}}/admin/categories/{{new_category_id}}",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\",()=>pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "C5 Deleted category returns 404",
-      "request": {"method":"GET","url":"{{base_url}}/admin/categories/{{new_category_id}}","header":[]},
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 404\",()=>pm.response.to.have.status(404));"]}}]
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/admin/categories/{{new_category_id}}",
+        "header": []
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\",()=>pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "01 Health",
@@ -810,6 +1370,369 @@
             "exec": [
               "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
             ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Publishers and book_publisher",
+      "description": "API for publisher and book_publisher. Admin writes inherit admin_token. Set publisher_book_id to an existing book ID before testing relationship writes. PUT replaces the whole publisher set.",
+      "item": [
+        {
+          "name": "Public reads",
+          "item": [
+            {
+              "name": "P01 List publishers",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/publishers?page=1&limit=100",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "const data = pm.response.json().data; if (data.length) pm.collectionVariables.set(\"publisher_id\", data[0].id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "P02 Publisher detail",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/publishers/{{publisher_id}}",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "P03 Public books from publisher",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/publishers/{{publisher_id}}/books?sort=price_asc",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "P04 Filter catalog by publisher",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/books?publisher_id={{publisher_id}}&sort=newest",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "P05 Publishers of a public book",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/books/{{public_book_id}}/publishers",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin publisher CRUD",
+          "item": [
+            {
+              "name": "P10 Admin publisher list",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/publishers?limit=100",
+                "header": []
+              }
+            },
+            {
+              "name": "P11 Create publisher",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/publishers",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"NXB Postman {{$timestamp}}\",\n  \"description\": \"Demo publisher\",\n  \"website\": \"https://example.com\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                      "pm.collectionVariables.set(\"new_publisher_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "P12 Admin publisher detail",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/publishers/{{new_publisher_id}}",
+                "header": []
+              }
+            },
+            {
+              "name": "P13 Update publisher",
+              "request": {
+                "method": "PATCH",
+                "url": "{{base_url}}/admin/publishers/{{new_publisher_id}}",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated demo description\",\n  \"website\": \"https://example.com/books\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "P14 Admin books from publisher",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/publishers/{{new_publisher_id}}/books",
+                "header": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin book_publisher links",
+          "item": [
+            {
+              "name": "P20 Book publishers",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/books/{{publisher_book_id}}/publishers",
+                "header": []
+              }
+            },
+            {
+              "name": "P21 Add one publisher to book",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/books/{{publisher_book_id}}/publishers",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"publisher_id\": {{new_publisher_id}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "P22 Replace all publishers of book",
+              "request": {
+                "method": "PUT",
+                "url": "{{base_url}}/admin/books/{{publisher_book_id}}/publishers",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"publisher_ids\": [\n    {{new_publisher_id}}\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Replaces all existing publisher links for this book."
+              }
+            },
+            {
+              "name": "P23 Remove one publisher from book",
+              "request": {
+                "method": "DELETE",
+                "url": "{{base_url}}/admin/books/{{publisher_book_id}}/publishers/{{new_publisher_id}}",
+                "header": []
+              }
+            },
+            {
+              "name": "P24 Match existing book by publisher IDs",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/books/match",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Book title\",\n  \"author_names\": [\n    \"Author name\"\n  ],\n  \"publisher_ids\": [\n    {{publisher_id}}\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cleanup unlinked demo publisher",
+          "item": [
+            {
+              "name": "P15 Delete unlinked publisher",
+              "request": {
+                "method": "DELETE",
+                "url": "{{base_url}}/admin/publishers/{{new_publisher_id}}",
+                "header": [],
+                "description": "Returns 409 if any book still links to this publisher. Unlink it before deleting."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authors - admin",
+      "description": "Admin-only author lookup and creation. Book dropdowns submit IDs from these records.",
+      "item": [
+        {
+          "name": "AU01 List authors",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/authors?limit=100",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const rows=pm.response.json().data; if(rows.length) pm.collectionVariables.set(\"author_id\",rows[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AU02 Create author",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/admin/authors",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Author {{$timestamp}}\",\n  \"biography\": \"Demo biography\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"new_author_id\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AU03 Author detail",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/authors/{{new_author_id}}",
+            "header": []
+          }
+        },
+        {
+          "name": "AU04 Search authors",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/authors?search=Postman&page=1&limit=20",
+            "header": []
+          }
+        },
+        {
+          "name": "AU05 Match book by dropdown selections",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/admin/books/match",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Book title\",\n  \"author_ids\": [\n    {{new_author_id}}\n  ],\n  \"publisher_ids\": [\n    {{publisher_id}}\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         }
       ]

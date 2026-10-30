@@ -9,14 +9,22 @@ test('book validation rejects invalid data and unsafe field names',()=>{assert.t
 test('HTTP book CRUD, missing category, pagination and FK deletion errors',async()=>{
  let book=null,referenced=false,snapshot=null;
  const execute=async(sql,args=[])=>{
-  if(sql.startsWith('SELECT id,full_name,email,role,is_active FROM users'))return [[{id:1,role:'admin',is_active:1}],[]];
+  if(sql.startsWith('SELECT GET_LOCK'))return [[{acquired:1}],[]];
+  if(sql.startsWith('SELECT RELEASE_LOCK'))return [[{released:1}],[]];
+  if(sql.startsWith('SELECT ba.book_id'))return [[],[]];
+  if(sql.startsWith('SELECT bp.book_id'))return [[],[]];
+  if(sql.startsWith('DELETE FROM book_authors'))return [{affectedRows:0},[]];
+  if(sql.startsWith('DELETE FROM book_publisher'))return [{affectedRows:0},[]];
+  if(/^SELECT id,\s*full_name,\s*email,\s*role,\s*is_active FROM users/.test(sql))return [[{id:1,role:'admin',is_active:1}],[]];
   if(sql==='SELECT 1')return [[{ok:1}],[]];
   if(sql.startsWith('SELECT id FROM categories WHERE'))return [args[0]===1?[{id:1}]:[],[]];
   if(sql.startsWith('SELECT id, name FROM categories'))return [[{id:1,name:'Demo'}],[]];
-  if(sql.startsWith('INSERT INTO books')){const keys=[...sql.split('VALUES')[0].matchAll(/`([a-z_]+)`/g)].map(x=>x[1]);book={id:5,...Object.fromEntries(keys.map((k,i)=>[k,args[i]]))};return [{insertId:5},[]];}
+  if(sql.startsWith('INSERT INTO books')){const keys=[...sql.split('VALUES')[0].matchAll(/`([a-z_]+)`/g)].map(x=>x[1]);book={id:5,stock_quantity:0,...Object.fromEntries(keys.map((k,i)=>[k,args[i]]))};return [{insertId:5},[]];}
   if(sql.startsWith('SELECT COUNT(*)'))return [[{total:book?1:0}],[]];
   if(sql.startsWith('SELECT b.*'))return [book&&(!sql.includes('WHERE b.id')||args[0]===book.id)?[{...book,category_name:'Demo'}]:[],[]];
   if(sql.startsWith('SELECT id FROM books'))return [book?[{id:book.id}]:[],[]];
+  if(sql.startsWith('SELECT stock_quantity FROM books'))return [book?[{stock_quantity:book.stock_quantity}]:[],[]];
+  if(sql.startsWith('UPDATE books SET stock_quantity = stock_quantity +')){book.stock_quantity+=args[0];return [{affectedRows:1},[]];}
   if(sql.startsWith('UPDATE books')){const keys=[...sql.matchAll(/`([a-z_]+)`/g)].map(x=>x[1]);for(let i=0;i<keys.length;i++)book[keys[i]]=args[i];return [{affectedRows:1},[]];}
   if(sql.startsWith('DELETE FROM books')){if(referenced){const e=new Error('FK');e.code='ER_ROW_IS_REFERENCED_2';throw e;}book=null;return [{affectedRows:1},[]];}
   throw Error('Unexpected query: '+sql);
@@ -29,12 +37,15 @@ test('HTTP book CRUD, missing category, pagination and FK deletion errors',async
   const body={category_id:1,title:"Book ' test",price:100000,weight_grams:300};
   assert.equal((await call('POST','/api/admin/books',{...body,category_id:99}))[0],400);
   const [status,data]=await call('POST','/api/admin/books',body);assert.equal(status,201);assert.equal(data.data.id,5);
+  assert.equal(data.action,'created');
+  const [matchStatus,match]=await call('POST','/api/admin/books/match',{title:body.title,publisher:null,author_names:[]});assert.equal(matchStatus,200);assert.equal(match.data.id,5);
+  const [duplicateStatus,duplicate]=await call('POST','/api/admin/books',{...body,stock_quantity:4,price:999999});assert.equal(duplicateStatus,200);assert.equal(duplicate.action,'stock_added');assert.equal(duplicate.quantity_added,4);assert.equal(duplicate.data.stock_quantity,4);assert.equal(duplicate.data.price,100000);
   assert.equal((await call('GET','/api/admin/books'))[1].meta.total,1);
   assert.equal((await call('PATCH','/api/admin/books/5',{price:120000}))[1].data.price,120000);
   assert.equal((await call('GET','/api/admin/books?limit=999'))[0],400);
   referenced=true;assert.equal((await call('DELETE','/api/admin/books/5'))[0],409);assert.ok(book);
   referenced=false;assert.equal((await call('DELETE','/api/admin/books/5'))[0],204);
   assert.equal((await call('GET','/api/admin/books/5'))[0],404);
-  assert.equal((await call('GET','/api/admin/orders'))[0],404);
+  assert.equal((await call('GET','/api/admin/unknown-resource'))[0],404);
  }finally{await new Promise(r=>server.close(r));await pool.end();}
 });

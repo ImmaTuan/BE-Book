@@ -7,6 +7,7 @@ export function getGhnConfig() {
   if (!token || !shopId || !/^\d+$/.test(shopId)) {
     const error = new Error('Cấu hình GHN cần đủ GHN_TOKEN và GHN_SHOP_ID dạng số');
     error.status = 503;
+    error.expose = true;
     throw error;
   }
 
@@ -14,6 +15,7 @@ export function getGhnConfig() {
   if (!['https://online-gateway.ghn.vn', 'https://dev-online-gateway.ghn.vn'].includes(apiUrl)) {
     const error = new Error('GHN_API_URL phải là production hoặc staging endpoint của GHN');
     error.status = 500;
+    error.expose = true;
     throw error;
   }
 
@@ -22,6 +24,7 @@ export function getGhnConfig() {
   if (![2, 5].includes(serviceTypeId) || ![1, 2].includes(paymentTypeId)) {
     const error = new Error('GHN_SERVICE_TYPE_ID chỉ nhận 2/5 và GHN_PAYMENT_TYPE_ID chỉ nhận 1/2');
     error.status = 500;
+    error.expose = true;
     throw error;
   }
 
@@ -29,6 +32,7 @@ export function getGhnConfig() {
   if (!['KHONGCHOXEMHANG', 'CHOXEMHANGKHONGTHU', 'CHOTHUHANG'].includes(requiredNote)) {
     const error = new Error('GHN_REQUIRED_NOTE không hợp lệ');
     error.status = 500;
+    error.expose = true;
     throw error;
   }
 
@@ -43,6 +47,7 @@ export function getGhnConfig() {
   if (dimensions.some((dimension) => !Number.isInteger(dimension) || dimension < 1 || dimension > 200)) {
     const error = new Error('Kích thước kiện GHN phải là số nguyên từ 1 đến 200 cm');
     error.status = 500;
+    error.expose = true;
     throw error;
   }
 

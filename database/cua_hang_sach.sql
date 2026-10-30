@@ -820,3 +820,88 @@ JOIN `authors` AS a
   )
 WHERE MOD(b.`id`, 6) = 0;
 COMMIT;
+
+-- BEGIN PUBLISHER SCHEMA AND DEMO DATA
+-- Publisher normalization for the current books schema.
+-- Re-running this migration preserves existing publishers and links.
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `publisher` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) COLLATE utf8mb4_bin NOT NULL,
+  `name_key` varchar(255) COLLATE utf8mb4_bin GENERATED ALWAYS AS (lower(trim(`name`))) STORED,
+  `description` text DEFAULT NULL,
+  `website` varchar(2048) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_publisher_name_key` (`name_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `book_publisher` (
+  `book_id` int(11) NOT NULL,
+  `publisher_id` int(11) NOT NULL,
+  PRIMARY KEY (`book_id`, `publisher_id`),
+  KEY `idx_book_publisher_publisher` (`publisher_id`),
+  CONSTRAINT `fk_book_publisher_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_book_publisher_publisher` FOREIGN KEY (`publisher_id`) REFERENCES `publisher` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+START TRANSACTION;
+
+INSERT INTO `publisher` (`name`)
+SELECT DISTINCT TRIM(b.`publisher`) FROM `books` AS b
+WHERE b.`publisher` IS NOT NULL AND TRIM(b.`publisher`) <> ''
+ON DUPLICATE KEY UPDATE `id` = `publisher`.`id`;
+
+-- Only migrate books without normalized links. books.publisher is a legacy cache.
+INSERT INTO `book_publisher` (`book_id`, `publisher_id`)
+SELECT b.`id`, p.`id` FROM `books` AS b
+JOIN `publisher` AS p ON p.`name_key` = LOWER(TRIM(b.`publisher`)) COLLATE utf8mb4_bin
+WHERE NOT EXISTS (SELECT 1 FROM `book_publisher` AS bp WHERE bp.`book_id` = b.`id`);
+
+COMMIT;
+
+-- DEMO DATA ONLY: randomly assigned publishers are not verified book imprints.
+-- Existing assignments are preserved. Each unassigned book gets one sample publisher.
+-- CRC32 provides stable pseudo-random assignments when the script is run again.
+SET NAMES utf8mb4;
+START TRANSACTION;
+
+INSERT INTO `publisher` (`name`, `description`) VALUES
+('Nhà xuất bản Kim Đồng', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Trẻ', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Văn học', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Hội Nhà văn', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Tổng hợp Thành phố Hồ Chí Minh', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Giáo dục Việt Nam', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Phụ nữ Việt Nam', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Lao động', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Thế Giới', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Dân Trí', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Hồng Đức', 'Dữ liệu mẫu cho cửa hàng sách.'),
+('Nhà xuất bản Thanh Niên', 'Dữ liệu mẫu cho cửa hàng sách.')
+ON DUPLICATE KEY UPDATE `id` = `publisher`.`id`;
+
+INSERT INTO `book_publisher` (`book_id`, `publisher_id`)
+SELECT b.`id`, p.`id` FROM `books` AS b
+JOIN `publisher` AS p ON p.`name_key` = LOWER(ELT(
+  MOD(CRC32(CONCAT('moc-publisher-demo:', b.`id`)), 12) + 1,
+  'Nhà xuất bản Kim Đồng', 'Nhà xuất bản Trẻ', 'Nhà xuất bản Văn học',
+  'Nhà xuất bản Hội Nhà văn', 'Nhà xuất bản Tổng hợp Thành phố Hồ Chí Minh',
+  'Nhà xuất bản Giáo dục Việt Nam', 'Nhà xuất bản Phụ nữ Việt Nam',
+  'Nhà xuất bản Lao động', 'Nhà xuất bản Thế Giới', 'Nhà xuất bản Dân Trí',
+  'Nhà xuất bản Hồng Đức', 'Nhà xuất bản Thanh Niên'
+)) COLLATE utf8mb4_bin
+WHERE NOT EXISTS (SELECT 1 FROM `book_publisher` AS bp WHERE bp.`book_id` = b.`id`);
+
+-- Keep the old scalar column as a primary-publisher cache for older clients.
+UPDATE `books` AS b SET b.`publisher` = (
+  SELECT p.`name` FROM `book_publisher` AS bp JOIN `publisher` AS p ON p.`id` = bp.`publisher_id`
+  WHERE bp.`book_id` = b.`id` ORDER BY p.`name_key`, p.`id` LIMIT 1
+)
+WHERE EXISTS (SELECT 1 FROM `book_publisher` AS bp WHERE bp.`book_id` = b.`id`);
+
+COMMIT;
+
+-- END PUBLISHER SCHEMA AND DEMO DATA

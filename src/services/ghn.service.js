@@ -6,6 +6,7 @@ const masterDataTtl = 60 * 60 * 1000;
 function makeGhnError(message, status = 502) {
   const error = new Error(message);
   error.status = status;
+  error.expose = true;
   return error;
 }
 

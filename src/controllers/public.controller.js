@@ -1,20 +1,23 @@
-import * as books from '../models/book.model.js';
-import * as categories from '../models/category.model.js';
-import { fail, id, pagination } from '../validation.js';
+import * as books from "../models/book.model.js";
+import * as categories from "../models/category.model.js";
+import { fail, id, pagination } from "../validation.js";
+import { parseCatalogFilters } from "../catalog-filters.js";
 
 export async function listBooks(req, res) {
   const page = pagination(req.query);
   const result = await books.listPublicBooks({
     ...page,
+    ...parseCatalogFilters(req.query),
     search: req.query.search ? String(req.query.search) : null,
     category_id: req.query.category_id ? id(req.query.category_id) : null,
+    publisher_id: req.query.publisher_id ? id(req.query.publisher_id) : null,
   });
   res.json(result);
 }
 
 export async function detailBook(req, res) {
   const book = await books.findPublicBook(id(req.params.id));
-  if (!book) fail('Không tìm thấy sách', 404);
+  if (!book) fail("Không tìm thấy sách", 404);
   res.json({ data: book });
 }
 

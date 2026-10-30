@@ -10,7 +10,10 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "seed:accounts": "node scripts/seed-accounts.js"
+    "test:publishers": "node --test tests/publisher-input.test.js tests/book-identity.test.js tests/books.test.js",
+    "test:catalog": "node --test tests/author-input.test.js tests/publisher-input.test.js tests/book-identity.test.js tests/books.test.js",
+    "seed:accounts": "node scripts/seed-accounts.js",
+    "seed:publishers": "node scripts/seed-publishers.js"
   },
   "dependencies": {
     "express": "^5.1.0",
