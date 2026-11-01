@@ -1,4 +1,4 @@
-import * as orders from '../models/order.model.js';
+import * as orders from '../models/promotional-order.model.js';
 import * as ghn from '../services/ghn.service.js';
 import { fail, id, pagination } from '../validation.js';
 
@@ -11,6 +11,7 @@ const orderFields = [
   'to_district_name',
   'is_new_to_address',
   'items',
+  'order_promotion_code',
 ];
 
 function validateCreateOrder(body, requireGhnAddress) {
@@ -70,7 +71,34 @@ function validateCreateOrder(body, requireGhnAddress) {
     to_district_name: isNewAddress ? null : districtName,
     is_new_to_address: isNewAddress,
     items,
+    order_promotion_code: body.order_promotion_code ? String(body.order_promotion_code).trim() : null,
   };
+}
+
+function validateQuoteBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || Object.keys(body).some((key) => !['items', 'order_promotion_code'].includes(key))) {
+    fail('Quote body only accepts items and order_promotion_code');
+  }
+  if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 50) {
+    fail('items must contain 1 to 50 books');
+  }
+  const seen = new Set();
+  const items = body.items.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)
+      || Object.keys(item).some((key) => !['book_id', 'quantity'].includes(key))) {
+      fail('Each item only accepts book_id and quantity');
+    }
+    const bookId = id(item.book_id);
+    if (seen.has(bookId)) fail('Duplicate book_id is not allowed');
+    seen.add(bookId);
+    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) fail('quantity must be an integer from 1 to 99');
+    return { book_id: bookId, quantity: item.quantity };
+  });
+  const code = body.order_promotion_code == null || body.order_promotion_code === ''
+    ? null : String(body.order_promotion_code).trim();
+  if (code && code.length > 50) fail('order_promotion_code is too long');
+  return { items, code };
 }
 
 function validateStatus(status) {
@@ -96,6 +124,12 @@ export async function createOwnOrder(req, res) {
     order = await orders.findOrder(order.id);
   }
   res.status(201).json({ message: 'Đặt hàng thành công', data: order });
+}
+
+export async function quoteOwnOrder(req, res) {
+  const { items, code } = validateQuoteBody(req.body);
+  const quote = await orders.quoteOrder(req.user.id, items, code);
+  res.json({ data: quote });
 }
 
 export async function listOwnOrders(req, res) {

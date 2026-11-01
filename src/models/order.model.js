@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { pool } from '../config/db.js';
 import { fail } from '../validation.js';
+import { calculateOrderQuote } from '../promotion-pricing.js';
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 const allowedNextStatuses = {
@@ -20,7 +21,10 @@ async function findOrderItems(orderIds, db = pool) {
   if (!orderIds.length) return [];
   const placeholders = orderIds.map(() => '?').join(', ');
   const [rows] = await db.execute(
-    `SELECT oi.id, oi.order_id, oi.book_id, oi.book_title, oi.unit_price, oi.quantity,
+    `SELECT oi.id, oi.order_id, oi.book_id, oi.book_title, oi.unit_price,
+            COALESCE(oi.original_unit_price, oi.unit_price) AS original_unit_price,
+            COALESCE(oi.direct_discount_amount, 0) AS direct_discount_amount,
+            oi.product_promotion_id, COALESCE(oi.order_discount_amount, 0) AS order_discount_amount, oi.quantity,
             COALESCE(oi.weight_grams, b.weight_grams, 1) AS weight_grams
      FROM order_items AS oi
      LEFT JOIN books AS b ON b.id = oi.book_id

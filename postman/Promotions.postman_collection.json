@@ -1,0 +1,138 @@
+{
+  "info": {
+    "name": "Books API - Promotions",
+    "description": "Promotion setup and quote checks. Apply database/add_promotions.sql, then database/migrate_money_decimal.sql before running. No shipping fee or GHN checks are included.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "adminToken", "value": "" },
+    { "key": "customerToken", "value": "" },
+    { "key": "bookId", "value": "1" },
+    { "key": "otherBookId", "value": "2" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "couponCode", "value": "SACH10" },
+    { "key": "expiredCouponCode", "value": "HETHAN" },
+    { "key": "minimumCouponCode", "value": "DONTOITHIEU" },
+    { "key": "exhaustedCouponCode", "value": "HETLUOT" },
+    { "key": "perCustomerCouponCode", "value": "MOTLAN" },
+    { "key": "largeCouponCode", "value": "GIAMTOIDA" }
+  ],
+  "item": [
+    {
+      "name": "Admin - Create direct product promotion",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Sale tháng 11\",\n  \"discount_type\": \"percent\",\n  \"discount_value\": 33,\n  \"book_ids\": [{{bookId}}],\n  \"start_at\": \"2026-11-01 00:00:00\",\n  \"end_at\": \"2026-12-01 00:00:00\",\n  \"is_active\": true,\n  \"quantity_limit\": null\n}" },
+        "url": "{{baseUrl}}/admin/promotions/products"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('created', () => pm.response.to.have.status(201));"] } }]
+    },
+    {
+      "name": "Admin - Create order coupon",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Giảm 10 phần trăm\",\n  \"code\": \"{{couponCode}}\",\n  \"discount_type\": \"percent\",\n  \"discount_value\": 10,\n  \"min_order_amount\": 100000,\n  \"max_discount_amount\": 50000,\n  \"start_at\": \"2026-11-01 00:00:00\",\n  \"end_at\": \"2026-12-01 00:00:00\",\n  \"is_active\": true,\n  \"total_usage_limit\": 100,\n  \"per_customer_limit\": 1,\n  \"scope_type\": \"books\",\n  \"book_ids\": [{{bookId}}]\n}" },
+        "url": "{{baseUrl}}/admin/promotions/coupons"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('created', () => pm.response.to.have.status(201));"] } }]
+    },
+    {
+      "name": "Public - Related offers for a book",
+      "request": { "method": "GET", "url": "{{baseUrl}}/promotions/books/{{bookId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('offers returned', () => pm.response.to.have.status(200));", "pm.test('offers say they need a cart check', () => pm.response.json().data.every((item) => item.requires_cart_check));"] } }]
+    },
+    {
+      "name": "Customer - Quote cart and see available codes",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 2}]\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const quote = pm.response.json().data;", "pm.test('quote returned', () => pm.response.to.have.status(200));", "pm.test('amounts are non-negative', () => pm.expect(quote.total_amount).to.be.at.least(0));", "pm.test('coupon groups returned', () => pm.expect(quote.order_promotions).to.be.an('array'));"] } }]
+    },
+    {
+      "name": "Customer - Quote with selected coupon",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 2}],\n  \"order_promotion_code\": \"{{couponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const quote = pm.response.json().data;", "pm.test('coupon applies', () => pm.expect(quote.selected_order_promotion.eligible).to.eql(true));", "pm.test('discount cannot exceed subtotal', () => pm.expect(quote.order_discount_amount).to.be.at.most(quote.subtotal));", "pm.test('total cannot be negative', () => pm.expect(quote.total_amount).to.be.at.least(0));"] } }]
+    },
+    {
+      "name": "Case - Expired coupon",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{expiredCouponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('expired reason is returned', () => pm.expect(pm.response.json().data.promotion_error.code).to.eql('EXPIRED'));", "pm.test('expired coupon gives no discount', () => pm.expect(pm.response.json().data.order_discount_amount).to.eql(0));"] } }]
+    },
+    {
+      "name": "Case - Below minimum, show amount missing",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{minimumCouponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const error = pm.response.json().data.promotion_error;", "pm.test('minimum reason is returned', () => pm.expect(error.code).to.eql('MINIMUM_NOT_MET'));", "pm.test('missing amount is positive', () => pm.expect(error.missing_amount).to.be.above(0));"] } }]
+    },
+    {
+      "name": "Case - Usage limit reached",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{exhaustedCouponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('usage limit reason is returned', () => pm.expect(pm.response.json().data.promotion_error.code).to.eql('USAGE_LIMIT_REACHED'));"] } }]
+    },
+    {
+      "name": "Case - This customer reached their limit",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{perCustomerCouponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('customer limit reason is returned', () => pm.expect(pm.response.json().data.promotion_error.code).to.eql('CUSTOMER_LIMIT_REACHED'));"] } }]
+    },
+    {
+      "name": "Case - Cart changed outside coupon scope",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{otherBookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{couponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('changed-cart failure is explicit', () => pm.expect(pm.response.json().data.promotion_error.code).to.eql('NO_APPLICABLE_ITEMS'));"] } }]
+    },
+    {
+      "name": "Case - Discount larger than eligible total is capped",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 1}],\n  \"order_promotion_code\": \"{{largeCouponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders/quote"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const quote = pm.response.json().data;", "pm.test('discount is capped', () => pm.expect(quote.order_discount_amount).to.be.at.most(quote.subtotal));", "pm.test('total is non-negative', () => pm.expect(quote.total_amount).to.be.at.least(0));"] } }]
+    },
+    {
+      "name": "Customer - Place order with coupon (creates pending manual confirmation)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"recipient_name\": \"Postman Customer\",\n  \"recipient_phone\": \"0912345678\",\n  \"shipping_address\": \"1 Test Street, Ward 1, Ho Chi Minh City\",\n  \"to_province_name\": \"Ho Chi Minh City\",\n  \"to_ward_name\": \"Ward 1\",\n  \"is_new_to_address\": true,\n  \"items\": [{\"book_id\": {{bookId}}, \"quantity\": 2}],\n  \"order_promotion_code\": \"{{couponCode}}\"\n}" },
+        "url": "{{baseUrl}}/orders"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('order created', () => pm.response.to.have.status(201));", "pm.test('order waits for admin', () => pm.expect(pm.response.json().data.status).to.eql('pending'));", "pm.test('server returns order discount', () => pm.expect(Number(pm.response.json().data.discount_amount)).to.be.at.least(0));"] } }]
+    }
+  ]
+}
