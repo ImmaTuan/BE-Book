@@ -71,13 +71,22 @@ function couponStatus(promotion, usageByUser) {
 
 async function couponScopes(promotions, db, items) {
   const ids = promotions.filter((promotion) => promotion.scope_type !== 'all').map((promotion) => promotion.id);
-  if (!ids.length) return { books: new Map(), categories: new Map() };
+  if (!ids.length) return { books: new Map(), categories: new Map(), authors: new Map(), publishers: new Map(), bookAuthors: new Map(), bookPublishers: new Map() };
   const [bookScopes] = await db.execute(
     `SELECT promotion_id, book_id FROM coupon_books WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids,
   );
   const [categoryScopes] = await db.execute(
     `SELECT promotion_id, category_id FROM coupon_categories WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids,
   );
+  const [authorScopes] = await db.execute(
+    `SELECT promotion_id, author_id FROM coupon_authors WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids,
+  );
+  const [publisherScopes] = await db.execute(
+    `SELECT promotion_id, publisher_id FROM coupon_publishers WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids,
+  );
+  const bookIds = [...new Set(items.map((item) => item.book_id))];
+  const [bookAuthors] = await db.execute(`SELECT book_id, author_id FROM book_authors WHERE book_id IN (${bookIds.map(() => '?').join(',')})`, bookIds);
+  const [bookPublishers] = await db.execute(`SELECT book_id, publisher_id FROM book_publisher WHERE book_id IN (${bookIds.map(() => '?').join(',')})`, bookIds);
   const books = new Map();
   for (const row of bookScopes) {
     const list = books.get(row.promotion_id) ?? new Set(); list.add(row.book_id); books.set(row.promotion_id, list);
@@ -86,7 +95,22 @@ async function couponScopes(promotions, db, items) {
   for (const row of categoryScopes) {
     const list = categories.get(row.promotion_id) ?? new Set(); list.add(row.category_id); categories.set(row.promotion_id, list);
   }
-  return { books, categories };
+  const authors = new Map();
+  for (const row of authorScopes) {
+    const list = authors.get(row.promotion_id) ?? new Set(); list.add(row.author_id); authors.set(row.promotion_id, list);
+  }
+  const publishers = new Map();
+  for (const row of publisherScopes) {
+    const list = publishers.get(row.promotion_id) ?? new Set(); list.add(row.publisher_id); publishers.set(row.promotion_id, list);
+  }
+  const mapRelations = (rows, key) => {
+    const map = new Map();
+    for (const row of rows) {
+      const list = map.get(row.book_id) ?? new Set(); list.add(row[key]); map.set(row.book_id, list);
+    }
+    return map;
+  };
+  return { books, categories, authors, publishers, bookAuthors: mapRelations(bookAuthors, 'author_id'), bookPublishers: mapRelations(bookPublishers, 'publisher_id') };
 }
 
 function eligibleItems(promotion, items, scopes) {
@@ -95,8 +119,16 @@ function eligibleItems(promotion, items, scopes) {
     const allowed = scopes.books.get(promotion.id) ?? new Set();
     return items.filter((item) => allowed.has(item.book_id));
   }
-  const allowed = scopes.categories.get(promotion.id) ?? new Set();
-  return items.filter((item) => allowed.has(item.category_id));
+  if (promotion.scope_type === 'categories') {
+    const allowed = scopes.categories.get(promotion.id) ?? new Set();
+    return items.filter((item) => allowed.has(item.category_id));
+  }
+  if (promotion.scope_type === 'authors') {
+    const allowed = scopes.authors.get(promotion.id) ?? new Set();
+    return items.filter((item) => [...(scopes.bookAuthors.get(item.book_id) ?? [])].some((id) => allowed.has(id)));
+  }
+  const allowed = scopes.publishers.get(promotion.id) ?? new Set();
+  return items.filter((item) => [...(scopes.bookPublishers.get(item.book_id) ?? [])].some((id) => allowed.has(id)));
 }
 
 function couponAmount(promotion, base) {

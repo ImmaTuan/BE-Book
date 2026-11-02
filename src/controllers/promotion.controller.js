@@ -53,8 +53,16 @@ export async function bookSuggestions(req, res) {
          )) OR
          (p.scope_type = 'categories' AND EXISTS (
            SELECT 1 FROM coupon_categories cc WHERE cc.promotion_id = p.id AND cc.category_id = ? AND cc.is_active = 1
+         )) OR
+         (p.scope_type = 'authors' AND EXISTS (
+           SELECT 1 FROM coupon_authors ca JOIN book_authors ba ON ba.author_id = ca.author_id
+           WHERE ca.promotion_id = p.id AND ba.book_id = ? AND ca.is_active = 1
+         )) OR
+         (p.scope_type = 'publishers' AND EXISTS (
+           SELECT 1 FROM coupon_publishers cp JOIN book_publisher bp ON bp.publisher_id = cp.publisher_id
+           WHERE cp.promotion_id = p.id AND bp.book_id = ? AND cp.is_active = 1
          ))
-       ) ORDER BY p.end_at ASC`, [bookId, book.category_id],
+       ) ORDER BY p.end_at ASC`, [bookId, book.category_id, bookId, bookId],
   );
   res.json({ data: rows.map((row) => ({
     ...row,

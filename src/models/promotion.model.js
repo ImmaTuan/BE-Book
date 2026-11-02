@@ -2,7 +2,13 @@ import { pool } from '../config/db.js';
 import { fail } from '../validation.js';
 
 const TYPES = new Set(['percent', 'fixed']);
-const SCOPES = new Set(['all', 'books', 'categories']);
+const SCOPES = new Set(['all', 'books', 'categories', 'authors', 'publishers']);
+const scopeTables = {
+  books: ['coupon_books', 'book_id', 'books'],
+  categories: ['coupon_categories', 'category_id', 'categories'],
+  authors: ['coupon_authors', 'author_id', 'authors'],
+  publishers: ['coupon_publishers', 'publisher_id', 'publisher'],
+};
 
 function validPeriod(input) {
   if (!input.start_at || !input.end_at || !Number.isFinite(Date.parse(input.start_at)) || !Number.isFinite(Date.parse(input.end_at)) || Date.parse(input.start_at) >= Date.parse(input.end_at)) {
@@ -36,7 +42,8 @@ function validateActive(value = true) {
 
 export async function listProductPromotions(db = pool) {
   const [programs] = await db.execute(
-    `SELECT id, name, discount_type, discount_value, start_at, end_at, is_active, created_at
+    `SELECT id, name, discount_type, discount_value, start_at, end_at, is_active, created_at,
+            scope_type, scope_ids
      FROM product_promotions ORDER BY id DESC`,
   );
   if (!programs.length) return [];
@@ -49,8 +56,22 @@ export async function listProductPromotions(db = pool) {
   return programs.map((program) => ({
     ...program,
     discount_value: Number(program.discount_value),
+    target_ids: (typeof program.scope_ids === 'string' ? JSON.parse(program.scope_ids) : program.scope_ids)
+      || books.filter((book) => book.product_promotion_id === program.id).map((book) => book.book_id),
     books: books.filter((book) => book.product_promotion_id === program.id),
   }));
+}
+
+async function resolveBooksForScope(db, scopeType, targetIds) {
+  const marks = targetIds.map(() => '?').join(',');
+  const queries = {
+    books: [`SELECT id FROM books WHERE id IN (${marks})`, targetIds],
+    categories: [`SELECT id FROM books WHERE category_id IN (${marks})`, targetIds],
+    authors: [`SELECT DISTINCT b.id FROM books b JOIN book_authors ba ON ba.book_id = b.id WHERE ba.author_id IN (${marks})`, targetIds],
+    publishers: [`SELECT DISTINCT b.id FROM books b JOIN book_publisher bp ON bp.book_id = b.id WHERE bp.publisher_id IN (${marks})`, targetIds],
+  };
+  const [rows] = await db.execute(queries[scopeType][0], queries[scopeType][1]);
+  return rows.map((row) => row.id);
 }
 
 export async function saveProductPromotion(input, id = null) {
@@ -58,7 +79,9 @@ export async function saveProductPromotion(input, id = null) {
   if (!name || name.length > 255) fail('name is required and must be at most 255 characters');
   const discountValue = validateDiscount(input);
   validPeriod(input);
-  const bookIds = validateIds(input.book_ids, 'book_ids');
+  const scopeType = input.scope_type ?? 'books';
+  if (!SCOPES.has(scopeType) || scopeType === 'all') fail('scope_type must be books, categories, authors or publishers');
+  const targets = validateIds(input.target_ids ?? input.book_ids, 'target_ids');
   const quantityLimit = input.quantity_limit === '' || input.quantity_limit === undefined || input.quantity_limit === null
     ? null : Number(input.quantity_limit);
   if (quantityLimit !== null && (!Number.isSafeInteger(quantityLimit) || quantityLimit < 1)) fail('quantity_limit must be a positive integer');
@@ -66,33 +89,36 @@ export async function saveProductPromotion(input, id = null) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    for (const bookId of bookIds) {
-      const [rows] = await connection.execute('SELECT id FROM books WHERE id = ? FOR UPDATE', [bookId]);
-      if (!rows.length) fail(`BOOK_NOT_FOUND:${bookId}`, 404);
+    const table = scopeTables[scopeType][2];
+    for (const targetId of targets) {
+      const [rows] = await connection.execute(`SELECT id FROM ${table} WHERE id = ? FOR UPDATE`, [targetId]);
+      if (!rows.length) fail(`${table.toUpperCase()}_NOT_FOUND:${targetId}`, 404);
     }
+    const bookIds = await resolveBooksForScope(connection, scopeType, targets);
+    if (!bookIds.length) fail('PROMOTION_SCOPE_HAS_NO_BOOKS');
     let programId = id;
     if (id) {
       const [existingProgram] = await connection.execute('SELECT id FROM product_promotions WHERE id = ? FOR UPDATE', [id]);
       if (!existingProgram.length) fail('PRODUCT_PROMOTION_NOT_FOUND', 404);
       const [existingRows] = await connection.execute(
         `SELECT ppb.book_id, ppb.quantity_used FROM product_promotion_books ppb
-         WHERE ppb.product_promotion_id = ? AND ppb.book_id IN (${bookIds.map(() => '?').join(',')}) FOR UPDATE`,
-        [id, ...bookIds],
+         WHERE ppb.product_promotion_id = ? FOR UPDATE`,
+        [id],
       );
-      if (quantityLimit !== null && existingRows.some((row) => quantityLimit < row.quantity_used)) {
+      if (quantityLimit !== null && existingRows.some((row) => bookIds.includes(Number(row.book_id)) && quantityLimit < row.quantity_used)) {
         fail('quantity_limit cannot be lower than the number already reserved');
       }
       await connection.execute(
         `UPDATE product_promotions SET name = ?, discount_type = ?, discount_value = ?,
-         start_at = ?, end_at = ?, is_active = ? WHERE id = ?`,
-        [name, input.discount_type, discountValue, input.start_at, input.end_at, active, id],
+         start_at = ?, end_at = ?, is_active = ?, scope_type = ?, scope_ids = ? WHERE id = ?`,
+        [name, input.discount_type, discountValue, input.start_at, input.end_at, active, scopeType, JSON.stringify(targets), id],
       );
       await connection.execute('UPDATE product_promotion_books SET is_active = 0 WHERE product_promotion_id = ?', [id]);
     } else {
       const [result] = await connection.execute(
-        `INSERT INTO product_promotions (name, discount_type, discount_value, start_at, end_at, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [name, input.discount_type, discountValue, input.start_at, input.end_at, active],
+        `INSERT INTO product_promotions (name, discount_type, discount_value, start_at, end_at, is_active, scope_type, scope_ids)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, input.discount_type, discountValue, input.start_at, input.end_at, active, scopeType, JSON.stringify(targets)],
       );
       programId = result.insertId;
     }
@@ -123,6 +149,8 @@ export async function listCoupons(db = pool) {
   const ids = rows.map((row) => row.id);
   const [bookRows] = await db.execute(`SELECT promotion_id, book_id FROM coupon_books WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids);
   const [categoryRows] = await db.execute(`SELECT promotion_id, category_id FROM coupon_categories WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids);
+  const [authorRows] = await db.execute(`SELECT promotion_id, author_id FROM coupon_authors WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids);
+  const [publisherRows] = await db.execute(`SELECT promotion_id, publisher_id FROM coupon_publishers WHERE is_active = 1 AND promotion_id IN (${ids.map(() => '?').join(',')})`, ids);
   return rows.map((row) => ({
     ...row,
     discount_value: Number(row.discount_value),
@@ -130,6 +158,8 @@ export async function listCoupons(db = pool) {
     max_discount_amount: row.max_discount_amount === null ? null : Number(row.max_discount_amount),
     book_ids: bookRows.filter((item) => item.promotion_id === row.id).map((item) => item.book_id),
     category_ids: categoryRows.filter((item) => item.promotion_id === row.id).map((item) => item.category_id),
+    author_ids: authorRows.filter((item) => item.promotion_id === row.id).map((item) => item.author_id),
+    publisher_ids: publisherRows.filter((item) => item.promotion_id === row.id).map((item) => item.publisher_id),
   }));
 }
 
@@ -150,16 +180,18 @@ export async function saveCoupon(input, id = null) {
   if (!Number.isSafeInteger(minOrder) || minOrder < 0 || (maxDiscount !== null && (!Number.isSafeInteger(maxDiscount) || maxDiscount < 0))) fail('Coupon amounts must be non-negative whole VND amounts');
   for (const limit of [totalLimit, perCustomerLimit]) if (limit !== null && (!Number.isSafeInteger(limit) || limit < 1)) fail('Usage limits must be positive integers');
   const scopeType = input.scope_type ?? 'all';
-  if (!SCOPES.has(scopeType)) fail('scope_type must be all, books or categories');
-  const targets = scopeType === 'books' ? validateIds(input.book_ids, 'book_ids') : scopeType === 'categories' ? validateIds(input.category_ids, 'category_ids') : [];
+  if (!SCOPES.has(scopeType)) fail('scope_type must be all, books, categories, authors or publishers');
+  const targets = scopeType === 'all' ? [] : validateIds(input.target_ids ?? input[scopeTables[scopeType][1].replace(/_id$/, '_ids')], 'target_ids');
   const active = validateActive(input.is_active ?? true);
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const table = scopeType === 'books' ? 'books' : 'categories';
-    for (const targetId of targets) {
-      const [rows] = await connection.execute(`SELECT id FROM ${table} WHERE id = ? FOR UPDATE`, [targetId]);
-      if (!rows.length) fail(`${table.toUpperCase()}_NOT_FOUND:${targetId}`, 404);
+    if (scopeType !== 'all') {
+      const table = scopeTables[scopeType][2];
+      for (const targetId of targets) {
+        const [rows] = await connection.execute(`SELECT id FROM ${table} WHERE id = ? FOR UPDATE`, [targetId]);
+        if (!rows.length) fail(`${table.toUpperCase()}_NOT_FOUND:${targetId}`, 404);
+      }
     }
     let promotionId = id;
     const values = [name, code, input.discount_type, discountValue, minOrder, maxDiscount, input.start_at, input.end_at, active, totalLimit, perCustomerLimit, scopeType];
@@ -173,6 +205,8 @@ export async function saveCoupon(input, id = null) {
       );
       await connection.execute('UPDATE coupon_books SET is_active = 0 WHERE promotion_id = ?', [id]);
       await connection.execute('UPDATE coupon_categories SET is_active = 0 WHERE promotion_id = ?', [id]);
+      await connection.execute('UPDATE coupon_authors SET is_active = 0 WHERE promotion_id = ?', [id]);
+      await connection.execute('UPDATE coupon_publishers SET is_active = 0 WHERE promotion_id = ?', [id]);
     } else {
       const [result] = await connection.execute(
         `INSERT INTO promotions (name, code, kind, discount_type, discount_value, min_order_amount, max_discount_amount,
@@ -183,12 +217,9 @@ export async function saveCoupon(input, id = null) {
       promotionId = result.insertId;
     }
     for (const targetId of targets) {
-      if (scopeType === 'books') await connection.execute(
-        `INSERT INTO coupon_books (promotion_id, book_id, is_active) VALUES (?, ?, 1)
-         ON DUPLICATE KEY UPDATE is_active = 1`, [promotionId, targetId],
-      );
-      if (scopeType === 'categories') await connection.execute(
-        `INSERT INTO coupon_categories (promotion_id, category_id, is_active) VALUES (?, ?, 1)
+      const [table, column] = scopeTables[scopeType];
+      await connection.execute(
+        `INSERT INTO ${table} (promotion_id, ${column}, is_active) VALUES (?, ?, 1)
          ON DUPLICATE KEY UPDATE is_active = 1`, [promotionId, targetId],
       );
     }

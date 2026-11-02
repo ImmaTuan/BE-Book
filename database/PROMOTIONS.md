@@ -4,12 +4,14 @@ This change covers direct book discounts and order coupons. It deliberately does
 
 ## Apply the migrations
 
-Back up the current database, then run these files once against `cua_hang_sach`, in order:
+Back up the current database first. `add_promotions.sql` and `add_promotion_author_publisher_scopes.sql` currently target `cua_hang_sach2`; confirm that is the intended database before running them. `migrate_money_decimal.sql` currently targets `cua_hang_sach`, so change its `USE` line if your active database is `cua_hang_sach2`.
 
 1. `add_promotions.sql` creates the new promotion/link/history tables, extends the existing `promotions`, `orders`, and `order_items` tables, and backfills any old `orders.promotion_id` uses.
 2. `migrate_money_decimal.sql` first shows preview queries, then changes the book/order/item/coupon/payment amounts from `FLOAT` to `DECIMAL(15,2)`. It does not alter shipping or GHN amount columns.
+3. `add_promotion_author_publisher_scopes.sql` adds coupon targeting by author/publisher and stores the chosen scope for direct promotions. For a direct promotion, the selected books are snapshotted when it is saved; books added later to the selected author/publisher are not automatically included.
 
-Both files preserve existing rows. They are one-time migrations; do not run them again after the `ALTER TABLE` statements have succeeded.
+All migrations preserve existing rows. They are one-time migrations; do not run them again after the `ALTER TABLE` statements have succeeded.
+The author/publisher migration is also a one-time migration and preserves existing promotions.
 
 ## API routes
 
