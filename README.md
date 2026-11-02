@@ -51,6 +51,10 @@ Admin gọi `GET /api/admin/orders` (hỗ trợ `page`, `limit`, `status`), `GET
 
 Chạy `database/add_orders.sql` nếu database chưa có bảng `orders`/`order_items`. Với database đã có các bảng đó từ schema cũ, chạy một lần `database/add_ghn_order_fields.sql` để thêm trường địa chỉ GHN và khối lượng snapshot sản phẩm.
 
+### Địa chỉ GHN trong hồ sơ khách hàng
+
+Chạy một lần `database/profile_ghn_address.sql` trên database `cua_hang_sach` để lưu riêng địa chỉ cụ thể, mã/tên tỉnh, mã/tên phường, quận/huyện cho địa chỉ cũ và trạng thái địa giới. API `GET/PATCH /api/auth/me/profile` và API admin sửa profile nhận/trả các trường `shipping_address`, `shipping_province_id`, `shipping_province_name`, `shipping_ward_code`, `shipping_ward_name`, `shipping_district_name`, `shipping_is_new_to_address`. Frontend tải tỉnh và phường qua API GHN hiện có; checkout đọc profile lúc mở và cho khách sửa địa chỉ trước khi đặt.
+
 ## API CRUD sách (cần token Admin)
 
 | Method | URL | Công dụng |

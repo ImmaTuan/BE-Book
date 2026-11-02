@@ -7,13 +7,23 @@ const fields = [
   'gender',
   'date_of_birth',
   'shipping_address',
+  'shipping_province_id',
+  'shipping_province_name',
+  'shipping_ward_code',
+  'shipping_ward_name',
+  'shipping_district_name',
+  'shipping_is_new_to_address',
   'loyalty_points',
   'membership_tier',
 ];
 const customerFields = fields.filter(
   (key) => !['loyalty_points', 'membership_tier'].includes(key),
 );
-const nullable = ['phone', 'date_of_birth', 'shipping_address'];
+const nullable = [
+  'phone', 'date_of_birth', 'shipping_address', 'shipping_province_id',
+  'shipping_province_name', 'shipping_ward_code', 'shipping_ward_name',
+  'shipping_district_name',
+];
 
 function validateProfile(body, allowedFields = fields) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -73,6 +83,23 @@ function validateProfile(body, allowedFields = fields) {
     } else if (key === 'shipping_address') {
       if (typeof value !== 'string' || value.length > 1000) {
         fail('shipping_address tối đa 1000 ký tự');
+      }
+      out[key] = value.trim() || null;
+    } else if (key === 'shipping_province_id') {
+      if (!Number.isInteger(value) || value < 1 || value > 2147483647) {
+        fail('shipping_province_id không hợp lệ');
+      }
+      out[key] = value;
+    } else if (key === 'shipping_is_new_to_address') {
+      if (typeof value !== 'boolean') fail('shipping_is_new_to_address phải là boolean');
+      out[key] = value ? 1 : 0;
+    } else if ([
+      'shipping_province_name', 'shipping_ward_code', 'shipping_ward_name',
+      'shipping_district_name',
+    ].includes(key)) {
+      const maxLength = key === 'shipping_ward_code' ? 20 : 255;
+      if (typeof value !== 'string' || value.length > maxLength) {
+        fail(key + ' tối đa ' + maxLength + ' ký tự');
       }
       out[key] = value.trim() || null;
     } else if (key === 'loyalty_points') {
