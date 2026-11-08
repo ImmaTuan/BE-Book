@@ -12,6 +12,11 @@
     "test": "node --test",
     "test:publishers": "node --test tests/publisher-input.test.js tests/book-identity.test.js tests/books.test.js",
     "test:catalog": "node --test tests/author-input.test.js tests/publisher-input.test.js tests/book-identity.test.js tests/books.test.js",
+    "migrate:customer-features": "node scripts/migrate-customer-features.js",
+    "expire:payments": "node scripts/expire-payments.js",
+    "migrate:vnpay": "node scripts/migrate-vnpay.js",
+    "migrate:payments": "node scripts/migrate-order-payment.js",
+    "migrate:delivery": "node scripts/migrate-delivery.js",
     "seed:accounts": "node scripts/seed-accounts.js",
     "seed:publishers": "node scripts/seed-publishers.js"
   },

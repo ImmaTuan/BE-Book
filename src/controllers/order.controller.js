@@ -1,3 +1,9 @@
+import { getVnpayConfig } from '../config/vnpay.js';
+import { prepareVnpayPayment } from '../services/order-vnpay.service.js';
+import { paymentIp } from '../services/vnpay.service.js';
+import { validatePaymentMethod } from '../order-payment.js';
+import { refreshOrderDelivery } from '../services/order-delivery.service.js';
+import { getGhnDeliveryDate } from '../delivery-estimate.js';
 import * as orders from '../models/promotional-order.model.js';
 import * as ghn from '../services/ghn.service.js';
 import { fail, id, pagination } from '../validation.js';
@@ -12,14 +18,16 @@ const orderFields = [
   'is_new_to_address',
   'items',
   'order_promotion_code',
+  'payment_method',
 ];
 
 function validateCreateOrder(body, requireGhnAddress) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) fail('Body phải là JSON object');
   if (Object.keys(body).some((key) => !orderFields.includes(key))) {
-    fail('Đơn hàng chỉ nhận recipient_name, recipient_phone, shipping_address và items');
+    fail('Đơn hàng chỉ nhận thông tin người nhận, địa chỉ giao hàng, items, order_promotion_code và payment_method');
   }
 
+  const paymentMethod = validatePaymentMethod(body.payment_method);
   const recipientName = typeof body.recipient_name === 'string' ? body.recipient_name.trim() : '';
   const recipientPhone = typeof body.recipient_phone === 'string' ? body.recipient_phone.trim() : '';
   const shippingAddress = typeof body.shipping_address === 'string' ? body.shipping_address.trim() : '';
@@ -63,6 +71,7 @@ function validateCreateOrder(body, requireGhnAddress) {
   });
 
   return {
+    payment_method: paymentMethod,
     recipient_name: recipientName,
     recipient_phone: recipientPhone,
     shipping_address: shippingAddress,
@@ -109,13 +118,27 @@ function validateStatus(status) {
 export async function createOwnOrder(req, res) {
   const ghnEnabled = ghn.isGhnConfigured();
   const input = validateCreateOrder(req.body, ghnEnabled);
+  if (input.payment_method === 'vnpay') {
+    getVnpayConfig();
+    if (!ghnEnabled) fail('Cần cấu hình GHN để xác định phí giao hàng trước khi thanh toán VNPAY', 503);
+  }
   let order = await orders.createOrder(req.user.id, input);
+  if (input.payment_method === 'vnpay') {
+    let payment = null;
+    let paymentError = null;
+    try { payment = await prepareVnpayPayment(order, req.user.id, paymentIp(req)); }
+    catch (error) { paymentError = error.expose || error.status < 500 ? error.message : 'Chưa tạo được liên kết thanh toán. Vui lòng thử lại từ đơn hàng.'; }
+    order = await orders.findOrder(order.id);
+    return res.status(201).json({ message: 'Đã tạo đơn chờ thanh toán VNPAY', data: order, payment, ...(paymentError ? { payment_error: paymentError } : {}) });
+  }
+  console.log('New order created', { order_id: order.id, user_id: req.user.id, ghn_enabled: ghnEnabled });
   if (ghnEnabled) {
     try {
       const shipment = await ghn.createGhnShipment(order);
       order = await orders.saveGhnShipment(order.id, shipment);
     } catch (error) {
       await orders.updateGhnStatus(order.id, 'create_failed');
+      console.log('Failed to create GHN shipment for order', order.id, error);
       order = await orders.findOrder(order.id);
       order.shipping_error = error.message;
     }
@@ -132,22 +155,39 @@ export async function quoteOwnOrder(req, res) {
   res.json({ data: quote });
 }
 
+function validateListFilters(query) {
+  const values = {};
+  const enums = {
+    status: orders.ORDER_STATUSES,
+    payment_status: ['unpaid', 'paid', 'cancelled', 'failed', 'expired', 'refund_required', 'review_required'],
+    payment_method: ['cod', 'vnpay'],
+  };
+  for (const [key, allowed] of Object.entries(enums)) {
+    if (query[key] === undefined || query[key] === '') continue;
+    if (typeof query[key] !== 'string' || !allowed.includes(query[key])) fail('Bộ lọc ' + key + ' không hợp lệ');
+    values[key === 'payment_status' ? 'paymentStatus' : key === 'payment_method' ? 'paymentMethod' : key] = query[key];
+  }
+  if (query.search !== undefined && (typeof query.search !== 'string' || query.search.length > 100)) fail('Từ khóa tìm mã đơn tối đa 100 ký tự');
+  if (query.search?.trim()) values.search = query.search.trim();
+  return values;
+}
+
 export async function listOwnOrders(req, res) {
   const page = pagination(req.query);
-  const result = await orders.listOrders({ ...page, userId: req.user.id });
+  const result = await orders.listOrders({ ...page, ...validateListFilters(req.query), userId: req.user.id });
+  result.data = await Promise.all(result.data.map((order) => refreshOrderDelivery(order)));
   res.json(result);
 }
 
 export async function getOwnOrder(req, res) {
   const order = await orders.findCustomerOrder(id(req.params.id), req.user.id);
   if (!order) fail('Không tìm thấy đơn hàng', 404);
-  res.json({ data: order });
+  res.json({ data: await refreshOrderDelivery(order) });
 }
 
 export async function listAllOrders(req, res) {
   const page = pagination(req.query);
-  const status = req.query.status ? validateStatus(String(req.query.status)) : undefined;
-  const result = await orders.listOrders({ ...page, status });
+  const result = await orders.listOrders({ ...page, ...validateListFilters(req.query) });
   res.json(result);
 }
 
@@ -169,10 +209,15 @@ export async function changeOrderStatus(req, res) {
   if (!orders.canTransitionOrderStatus(current.status, status)) {
     fail(`Không thể chuyển đơn hàng từ ${current.status} sang ${status}`, 409);
   }
+  if (current.payment_method === 'vnpay') {
+    if (status === 'cancelled' && ['paid', 'refund_required', 'review_required'].includes(current.payment_status)) fail('Đơn VNPAY cần xử lý hoàn tiền hoặc đối soát trước khi hủy', 409);
+    if (status !== 'cancelled' && current.payment_status !== 'paid') fail('Đơn VNPAY chưa thanh toán thành công', 409);
+  }
   if (status === 'cancelled' && current.ghn_order_code) {
     await ghn.cancelGhnShipment(current.ghn_order_code);
   }
-  const order = await orders.updateOrderStatus(orderId, status);
+  let order = await orders.updateOrderStatus(orderId, status, {actorId:req.user.id,source:'admin'});
+  if (['processing', 'shipped'].includes(status)) order = await refreshOrderDelivery(order, { force: true });
   if (status === 'cancelled' && current.ghn_order_code) {
     await orders.updateGhnStatus(orderId, 'cancel');
   }
@@ -189,7 +234,7 @@ export async function createShipment(req, res) {
   try {
     const shipment = await ghn.createGhnShipment(order);
     const updated = await orders.saveGhnShipment(order.id, shipment);
-    res.status(201).json({ message: 'Đã tạo vận đơn GHN', data: updated });
+    res.status(201).json({ message: 'Đã tạo vận đơn GHN', data: await refreshOrderDelivery(updated, { force: true }) });
   } catch (error) {
     await orders.updateGhnStatus(order.id, 'create_failed');
     throw error;
@@ -204,5 +249,6 @@ export async function getShipment(req, res) {
   const shipment = await ghn.getGhnShipment(order.ghn_order_code);
   if (!shipment?.status) fail('GHN không trả trạng thái vận đơn hợp lệ', 502);
   await orders.updateGhnStatus(order.id, shipment.status);
+  await orders.saveDeliveryEstimate(order.id, getGhnDeliveryDate(shipment));
   res.json({ data: { local_order: await orders.findOrder(order.id), shipment } });
 }

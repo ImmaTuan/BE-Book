@@ -1,3 +1,5 @@
+import { getCodAmount } from '../order-payment.js';
+import { getGhnDeliveryDate } from '../delivery-estimate.js';
 import { getGhnConfig } from '../config/ghn.js';
 
 const masterDataCache = new Map();
@@ -47,7 +49,52 @@ export function isGhnConfigured() {
   return getGhnConfig() !== null;
 }
 
-export async function createGhnShipment(order) {
+// Resolve the pickup address from the configured shop, independently of the recipient.
+// Some GHN shop records contain whitespace in ward_code; implicit shop defaults
+// then fail validation even though the ward exists in GHN master data.
+async function getGhnSenderAddress(setup) {
+  const { data } = await requestGhn('/shiip/public-api/v2/shop/all');
+  const shop = data?.shops?.find((entry) => String(entry._id) === setup.shopId);
+  if (!shop) {
+    throw makeGhnError('Không tìm thấy GHN_SHOP_ID trong tài khoản GHN; kiểm tra ShopId, token và môi trường API', 503);
+  }
+
+  if (shop.is_new_address === true) {
+    return { is_new_from_address: true };
+  }
+
+  const districtId = Number(shop.district_id);
+  const wardCode = String(shop.ward_code ?? '').trim();
+  if (!Number.isInteger(districtId) || districtId < 1 || !wardCode) {
+    throw makeGhnError('Shop GHN thiếu mã quận/huyện hoặc phường/xã người gửi; cập nhật địa chỉ lấy hàng trên GHN', 503);
+  }
+  const districts = await getCachedMasterData(
+    'sender:districts', '/shiip/public-api/master-data/district',
+  );
+  const district = districts?.find((entry) => Number(entry.DistrictID) === districtId);
+  const wards = await getCachedMasterData(
+    `sender:wards:${districtId}`,
+    `/shiip/public-api/master-data/ward?district_id=${districtId}`,
+  );
+  const ward = wards?.find((entry) => String(entry.WardCode).trim() === wardCode);
+  const provinces = await getCachedMasterData(
+    'sender:provinces', '/shiip/public-api/master-data/province',
+  );
+  const province = provinces?.find((entry) => Number(entry.ProvinceID) === Number(district?.ProvinceID));
+  if (!ward?.WardName || !district?.DistrictName || !province?.ProvinceName) {
+    throw makeGhnError('Địa chỉ người gửi của shop GHN không còn hợp lệ; cập nhật phường/xã, quận/huyện và tỉnh/thành lấy hàng trên GHN', 503);
+  }
+
+  return {
+    is_new_from_address: false,
+    from_ward_name: ward.WardName.trim(),
+    from_district_name: district.DistrictName.trim(),
+    from_province_name: province.ProvinceName.trim(),
+  };
+}
+
+async function buildGhnPayload(order) {
+  const codAmount = getCodAmount(order);
   const setup = getGhnConfig();
   if (!setup) throw makeGhnError('Cần cấu hình GHN_TOKEN và GHN_SHOP_ID trước', 503);
   const weight = Math.max(Number(order.package_weight_grams), 1);
@@ -68,6 +115,7 @@ export async function createGhnShipment(order) {
   }));
 
   const payload = {
+    ...await getGhnSenderAddress(setup),
     client_order_code: order.order_code,
     to_name: order.recipient_name,
     to_phone: order.recipient_phone,
@@ -81,15 +129,31 @@ export async function createGhnShipment(order) {
     width: setup.width,
     height: setup.height,
     service_type_id: serviceTypeId,
-    payment_type_id: setup.paymentTypeId,
+    payment_type_id: order.payment_method === 'vnpay' ? 1 : setup.paymentTypeId,
     required_note: setup.requiredNote,
     content: order.items.map((item) => `${item.book_title} x${item.quantity}`).join(', ').slice(0, 2000),
-    cod_amount: Math.round(Number(order.cod_amount)),
+    cod_amount: codAmount,
     order_value: Math.round(Number(order.subtotal)),
     insurance_value: Math.min(5000000, Math.round(Number(order.subtotal))),
     items,
   };
 
+  return { setup, serviceTypeId, payload };
+}
+
+export async function previewGhnShipment(order) {
+  const { payload } = await buildGhnPayload(order);
+  const result = await requestGhn('/shiip/public-api/v2/shipping-order/preview', { method: 'POST', body: payload });
+  const fee = Number(result.data?.total_fee ?? result.data?.fee?.total_fee);
+  if (!Number.isFinite(fee) || fee < 0) throw makeGhnError('GHN không trả phí giao hàng hợp lệ');
+  return { fee: Math.round(fee) };
+}
+
+export async function createGhnShipment(order) {
+  if (order.payment_method === 'vnpay' && order.payment_status !== 'paid') {
+    throw makeGhnError('Đơn VNPAY cần thanh toán thành công trước khi tạo vận đơn', 409);
+  }
+  const { setup, serviceTypeId, payload } = await buildGhnPayload(order);
   const result = await requestGhn('/shiip/public-api/v2/shipping-order/create', {
     method: 'POST',
     body: payload,
@@ -100,10 +164,10 @@ export async function createGhnShipment(order) {
     orderCode: result.data.order_code,
     status: result.data.status || 'ready_to_pick',
     fee: Number(result.data.total_fee ?? result.data.fee?.total_fee ?? 0),
-    expectedDeliveryTime: result.data.expected_delivery_time || null,
+    expectedDeliveryTime: getGhnDeliveryDate(result.data),
     shopId: Number(setup.shopId),
     serviceTypeId,
-    paymentTypeId: setup.paymentTypeId,
+    paymentTypeId: payload.payment_type_id,
     length: setup.length,
     width: setup.width,
     height: setup.height,

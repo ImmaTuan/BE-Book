@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `vnpay_payments` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `order_id` INT NOT NULL,
+  `reference` VARCHAR(100) NOT NULL,
+  `amount` BIGINT UNSIGNED NOT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `payment_url` TEXT NOT NULL,
+  `create_date` CHAR(14) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `transaction_no` VARCHAR(32) NULL,
+  `response_code` VARCHAR(2) NULL,
+  `transaction_status` VARCHAR(2) NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_vnpay_reference` (`reference`),
+  UNIQUE KEY `uq_vnpay_transaction_no` (`transaction_no`),
+  KEY `idx_vnpay_order` (`order_id`, `id`),
+  CONSTRAINT `fk_vnpay_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

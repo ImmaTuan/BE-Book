@@ -1,3 +1,5 @@
+import customerFeatureRouter from './routes/customer-feature.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
 import express from 'express';
 import cors from 'cors';
 import router from './routes/book.routes.js';
@@ -8,6 +10,7 @@ import orderRouter from './routes/order.routes.js';
 import adminOrderRouter from './routes/admin-order.routes.js';
 import shippingRouter from './routes/shipping.routes.js';
 import adminPromotionRouter from './routes/admin-promotion.routes.js';
+import paymentRouter from './routes/payment.routes.js';
 import webhookRouter from './routes/webhook.routes.js';
 import { authenticate, requireAdmin, requireCustomer } from './middleware/auth.js';
 import {pool} from './config/db.js';
@@ -20,11 +23,14 @@ app.get('/api/health', async (req, res) => {
   await pool.execute('SELECT 1');
   res.json({ status: 'ok' });
 });
+app.use('/api',customerFeatureRouter);
 app.use('/api',publicRouter);
 app.use('/api/auth',authRouter);
 app.use('/api/shipping', shippingRouter);
 app.use('/api/webhooks', webhookRouter);
+app.use('/api/payments', paymentRouter);
 app.use('/api/orders', authenticate, requireCustomer, orderRouter);
+app.use('/api/admin/dashboard', authenticate, requireAdmin, dashboardRouter);
 app.use('/api/admin/orders', authenticate, requireAdmin, adminOrderRouter);
 app.use('/api/admin/promotions', authenticate, requireAdmin, adminPromotionRouter);
 app.use('/api/admin', authenticate, requireAdmin, router);

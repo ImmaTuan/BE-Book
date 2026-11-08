@@ -1,3 +1,6 @@
+import { recordOrderEvent } from './order-event.model.js';
+import { codPaymentOutcome, validatePaymentMethod } from '../order-payment.js';
+import { normalizeDeliveryDate, toDeliverySqlDate } from '../delivery-estimate.js';
 import { randomBytes } from 'node:crypto';
 import { pool } from '../config/db.js';
 import { fail } from '../validation.js';
@@ -14,7 +17,16 @@ const allowedNextStatuses = {
 };
 
 function mapOrderRows(order, items, promotions = []) {
-  return { ...order, items, promotion_usages: promotions };
+  return {
+    ...order,
+    ghn_expected_delivery_at: normalizeDeliveryDate(order.ghn_expected_delivery_at),
+    ghn_delivery_checked_at: normalizeDeliveryDate(order.ghn_delivery_checked_at),
+    processing_started_at: normalizeDeliveryDate(order.processing_started_at),
+    paid_at: normalizeDeliveryDate(order.paid_at),
+    payment_expires_at: normalizeDeliveryDate(order.payment_expires_at),
+    expired_at: normalizeDeliveryDate(order.expired_at),
+    items, promotion_usages: promotions,
+  };
 }
 
 async function findOrderItems(orderIds, db = pool) {
@@ -46,6 +58,7 @@ export async function quoteOrder(userId, items, orderCode = null) {
 }
 
 export async function createOrder(userId, input) {
+  const paymentMethod = validatePaymentMethod(input.payment_method);
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -78,18 +91,21 @@ export async function createOrder(userId, input) {
         ghn_shop_id, to_district_id, to_ward_code, package_weight_grams,
         package_length_cm, package_width_cm, package_height_cm,
         service_type_id, payment_type_id, cod_amount, insurance_value,
-        ghn_to_ward_name, ghn_to_province_name, ghn_to_district_name, ghn_is_new_to_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?, ?, 0, 0, '', ?, 1, 1, 1, 0, 0, ?, 0, ?, ?, ?, ?)`,
+        ghn_to_ward_name, ghn_to_province_name, ghn_to_district_name, ghn_is_new_to_address, payment_method
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?, ?, 0, 0, '', ?, 1, 1, 1, 0, 0, ?, 0, ?, ?, ?, ?, ?)`,
       [
         userId, orderCode, input.recipient_name, input.recipient_phone, input.shipping_address,
         quote.subtotal, quote.direct_discount_amount, quote.total_amount, quote.order_discount_amount,
         quote.selected_order_promotion?.id ?? null,
-        Math.max(totalWeight, 1), quote.total_amount,
+        Math.max(totalWeight, 1), paymentMethod === 'vnpay' ? 0 : quote.total_amount,
         input.to_ward_name ?? '', input.to_province_name ?? '', input.to_district_name ?? null,
-        input.is_new_to_address ?? true,
+        input.is_new_to_address ?? true, paymentMethod,
       ],
     );
 
+    if (paymentMethod === 'vnpay') {
+      await connection.execute("UPDATE orders SET payment_expires_at=DATE_ADD(NOW(),INTERVAL 17 MINUTE) WHERE id=?", [created.insertId]);
+    }
     for (const item of quote.items) {
       await connection.execute(
         `INSERT INTO order_items (order_id, book_id, book_title, unit_price, original_unit_price,
@@ -122,6 +138,7 @@ export async function createOrder(userId, input) {
       );
     }
 
+    await recordOrderEvent(connection, {id:created.insertId,user_id:userId,order_code:orderCode}, {type:'order_created',to:'pending',source:'customer',actorId:userId,key:'created'});
     const order = await findOrder(created.insertId, connection);
     await connection.commit();
     return order;
@@ -133,17 +150,20 @@ export async function createOrder(userId, input) {
   }
 }
 
-export async function listOrders({ page, limit, offset, userId, status }) {
+export async function listOrders({ page, limit, offset, userId, status, paymentStatus, paymentMethod, search }) {
   const filters = [];
   const values = [];
   if (userId !== undefined) { filters.push('user_id = ?'); values.push(userId); }
   if (status) { filters.push('status = ?'); values.push(status); }
+  if (paymentStatus) { filters.push('payment_status = ?'); values.push(paymentStatus); }
+  if (paymentMethod) { filters.push('payment_method = ?'); values.push(paymentMethod); }
+  if (search) { filters.push('LOCATE(?, order_code) > 0'); values.push(search); }
   const where = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
   const [[count]] = await pool.execute(`SELECT COUNT(*) AS total FROM orders${where}`, values);
   const [orders] = await pool.execute(
     `SELECT id, user_id, order_code, recipient_name, recipient_phone, shipping_address,
             subtotal, direct_discount_amount, discount_amount, shipping_fee, total_amount,
-            status, created_at, ghn_order_code, ghn_status
+            status, payment_method, payment_status, paid_at, payment_expires_at, expired_at, created_at, ghn_expected_delivery_at, ghn_delivery_checked_at, processing_started_at, ghn_order_code, ghn_status
      FROM orders${where} ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`, values,
   );
   const items = await findOrderItems(orders.map((order) => order.id));
@@ -168,7 +188,7 @@ export async function findOrder(orderId, db = pool) {
   const [rows] = await db.execute(
     `SELECT id, user_id, order_code, recipient_name, recipient_phone, shipping_address,
             subtotal, direct_discount_amount, discount_amount, shipping_fee, total_amount,
-            status, created_at, ghn_order_code, ghn_status, package_weight_grams,
+            status, payment_method, payment_status, paid_at, payment_expires_at, expired_at, created_at, ghn_expected_delivery_at, ghn_delivery_checked_at, processing_started_at, ghn_order_code, ghn_status, package_weight_grams,
             ghn_to_ward_name, ghn_to_province_name, ghn_to_district_name, ghn_is_new_to_address,
             cod_amount
      FROM orders WHERE id = ?`, [orderId],
@@ -182,26 +202,65 @@ export async function findOrder(orderId, db = pool) {
 }
 
 export async function saveGhnShipment(orderId, shipment) {
+  const db=await pool.getConnection();
+  try {
+  await db.beginTransaction();
+  const [[current]]=await db.execute('SELECT * FROM orders WHERE id=? FOR UPDATE',[orderId]);
+  if(!current)fail('Không tìm thấy đơn hàng',404);
   const buyerPaysShipping = shipment.paymentTypeId === 2;
-  await pool.execute(
-    `UPDATE orders SET ghn_order_code = ?, ghn_status = ?, shipping_fee = ?,
-       total_amount = subtotal - discount_amount + ?, ghn_shop_id = ?, service_type_id = ?,
-       payment_type_id = ?, package_length_cm = ?, package_width_cm = ?, package_height_cm = ?
+  await db.execute(
+    `UPDATE orders SET ghn_order_code = ?, ghn_status = ?, shipping_fee = IF(payment_method = 'vnpay', shipping_fee, ?),
+       total_amount = IF(payment_method = 'vnpay', total_amount, subtotal - discount_amount + ?), ghn_shop_id = ?, service_type_id = ?,
+       payment_type_id = ?, package_length_cm = ?, package_width_cm = ?, package_height_cm = ?,
+       ghn_expected_delivery_at = ?, ghn_delivery_checked_at = NOW()
      WHERE id = ?`,
     [shipment.orderCode, shipment.status, shipment.fee, buyerPaysShipping ? shipment.fee : 0,
       shipment.shopId, shipment.serviceTypeId, shipment.paymentTypeId, shipment.length,
-      shipment.width, shipment.height, orderId],
+      shipment.width, shipment.height, toDeliverySqlDate(shipment.expectedDeliveryTime), orderId],
   );
-  return findOrder(orderId);
+  await recordOrderEvent(db,current,{type:'shipment_created',source:'ghn',to:shipment.status,detail:'Mã vận đơn: '+shipment.orderCode,key:'shipment:'+shipment.orderCode});
+  const updated=await findOrder(orderId,db);
+  await db.commit();return updated;
+  }catch(error){await db.rollback();throw error;}finally{db.release();}
 }
 
-export async function updateGhnStatus(orderId, status) {
-  await pool.execute('UPDATE orders SET ghn_status = ? WHERE id = ?', [String(status).slice(0, 50), orderId]);
+export async function saveDeliveryEstimate(orderId, expectedAt) {
+  await pool.execute(
+    'UPDATE orders SET ghn_expected_delivery_at = COALESCE(?, ghn_expected_delivery_at), ghn_delivery_checked_at = NOW() WHERE id = ?',
+    [toDeliverySqlDate(expectedAt), orderId],
+  );
 }
 
-export async function updateGhnStatusByCode(orderCode, status) {
-  await pool.execute('UPDATE orders SET ghn_status = ? WHERE ghn_order_code = ?', [String(status).slice(0, 50), orderCode]);
+// Restrict transitions to unpaid COD orders. Repeated delivery/cancel events do
+// not reset paid_at or turn a collected payment into a cancellation/refund.
+async function updateCodPayment(db, column, value, status, order, source='ghn') {
+  const outcome = codPaymentOutcome(status);
+  if (!outcome) return;
+  const [result]=await db.execute(
+    `UPDATE orders SET paid_at = IF(? = 'paid', COALESCE(paid_at, NOW()), paid_at),
+       payment_status = ? WHERE ${column} = ? AND payment_method = 'cod' AND payment_status = 'unpaid'`,
+    [outcome, outcome, value],
+  );
+  if(result.affectedRows && outcome==='paid') await recordOrderEvent(db,order,{type:'payment_paid',source,to:'paid'});
 }
+
+async function updateShippingStatus(column,value,status) {
+ const db=await pool.getConnection();
+ try{
+  await db.beginTransaction();
+  const [[order]]=await db.execute('SELECT * FROM orders WHERE '+column+'=? FOR UPDATE',[value]);
+  if(!order){await db.commit();return;}
+  const next=String(status).slice(0,50);
+  if(order.ghn_status!==next){
+   await db.execute('UPDATE orders SET ghn_status=?,ghn_delivery_checked_at=NULL WHERE id=?',[next,order.id]);
+   await recordOrderEvent(db,order,{type:'shipping_status',source:'ghn',from:order.ghn_status,to:next});
+  }
+  await updateCodPayment(db,'id',order.id,next,order);
+  await db.commit();
+ }catch(error){await db.rollback();throw error;}finally{db.release();}
+}
+export async function updateGhnStatus(orderId,status){return updateShippingStatus('id',orderId,status);}
+export async function updateGhnStatusByCode(orderCode,status){return updateShippingStatus('ghn_order_code',orderCode,status);}
 
 export async function findCustomerOrder(orderId, userId) {
   const order = await findOrder(orderId);
@@ -209,16 +268,34 @@ export async function findCustomerOrder(orderId, userId) {
   return order;
 }
 
-export async function updateOrderStatus(orderId, nextStatus) {
+export async function updateOrderStatus(orderId, nextStatus, { actorId=null, source='admin', expire=false }={}) {
   if (!ORDER_STATUSES.includes(nextStatus)) fail('Trạng thái đơn hàng không hợp lệ');
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [rows] = await connection.execute('SELECT id, status FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    const [rows] = await connection.execute('SELECT *, (payment_expires_at<=NOW()) AS payment_overdue FROM orders WHERE id = ? FOR UPDATE', [orderId]);
     const order = rows[0];
     if (!order) fail('Không tìm thấy đơn hàng', 404);
+    if(expire){
+      if(order.payment_method!=='vnpay'||order.status!=='pending'||!['unpaid','failed'].includes(order.payment_status)||!order.payment_overdue||order.ghn_order_code)fail('Đơn không còn đủ điều kiện hết hạn',409);
+      const [[active]]=await connection.execute("SELECT COUNT(*) AS count FROM vnpay_payments WHERE order_id=? AND status IN ('pending','review')",[orderId]);
+      if(Number(active.count)>0)fail('Giao dịch còn chờ đối soát',409);
+    }
+    if (order.payment_method === 'vnpay') {
+      if (nextStatus === 'cancelled' && ['paid', 'refund_required', 'review_required'].includes(order.payment_status)) {
+        fail('Đơn VNPAY đã thu tiền hoặc cần đối soát; cần xử lý hoàn tiền trước khi hủy', 409);
+      }
+      if (nextStatus !== 'cancelled' && order.payment_status !== 'paid') fail('Đơn VNPAY chưa thanh toán thành công', 409);
+    }
     if (!canTransitionOrderStatus(order.status, nextStatus)) fail(`Không thể chuyển đơn hàng từ ${order.status} sang ${nextStatus}`, 409);
-    await connection.execute('UPDATE orders SET status = ? WHERE id = ?', [nextStatus, orderId]);
+    await connection.execute(
+      "UPDATE orders SET status = ?, processing_started_at = IF(? = 'processing', COALESCE(processing_started_at, NOW()), processing_started_at) WHERE id = ?",
+      [nextStatus, nextStatus, orderId],
+    );
+    await updateCodPayment(connection, 'id', orderId, nextStatus, order, source);
+    if (nextStatus === 'cancelled' && order.payment_method === 'vnpay') {
+      await connection.execute("UPDATE orders SET payment_status = 'cancelled' WHERE id = ? AND payment_method = 'vnpay' AND payment_status IN ('unpaid', 'failed')", [orderId]);
+    }
     if (nextStatus === 'cancelled') {
       await connection.execute(
         `UPDATE books b JOIN order_items oi ON oi.book_id = b.id
@@ -243,6 +320,8 @@ export async function updateOrderStatus(orderId, nextStatus) {
     } else if (nextStatus === 'delivered') {
       await connection.execute("UPDATE promotion_usages SET status = 'used' WHERE order_id = ? AND status = 'reserved'", [orderId]);
     }
+    if(expire)await connection.execute("UPDATE orders SET payment_status='expired',expired_at=NOW() WHERE id=?",[orderId]);
+    await recordOrderEvent(connection,order,{type:expire?'payment_expired':'order_status',source,actorId,from:order.status,to:nextStatus,detail:expire?'Đơn hết hạn thanh toán; đã hoàn tồn kho và lượt dùng ưu đãi':null,key:expire?'payment_expired':null});
     const updated = await findOrder(orderId, connection);
     await connection.commit();
     return updated;

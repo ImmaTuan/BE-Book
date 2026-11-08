@@ -1,0 +1,18 @@
+import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
+import {authenticate,requireCustomer} from '../middleware/auth.js';
+import * as c from '../controllers/customer-feature.controller.js';
+const router=Router();
+const writes=rateLimit({windowMs:60000,limit:40,standardHeaders:'draft-8',legacyHeaders:false});
+router.get('/books/:bookId/reviews',c.listReviews);
+router.get('/books/:bookId/review-eligibility',authenticate,requireCustomer,c.eligibility);
+router.put('/books/:bookId/review',authenticate,requireCustomer,writes,c.saveReview);
+router.delete('/books/:bookId/review',authenticate,requireCustomer,writes,c.removeReview);
+router.get('/notifications',authenticate,requireCustomer,c.listNotifications);
+router.patch('/notifications/read-all',authenticate,requireCustomer,writes,c.readAllNotifications);
+router.patch('/notifications/:id/read',authenticate,requireCustomer,writes,c.readNotification);
+router.get('/wishlist',authenticate,requireCustomer,c.listWishlist);
+router.get('/wishlist/:bookId',authenticate,requireCustomer,c.wishlistState);
+router.put('/wishlist/:bookId',authenticate,requireCustomer,writes,c.addWishlist);
+router.delete('/wishlist/:bookId',authenticate,requireCustomer,writes,c.removeWishlist);
+export default router;

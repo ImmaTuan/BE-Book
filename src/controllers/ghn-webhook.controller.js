@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import * as orders from '../models/order.model.js';
+import * as orders from '../models/promotional-order.model.js';
 import { getGhnConfig } from '../config/ghn.js';
 import { fail } from '../validation.js';
 

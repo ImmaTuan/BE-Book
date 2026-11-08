@@ -47,6 +47,8 @@ Admin gọi `GET /api/admin/orders` (hỗ trợ `page`, `limit`, `status`), `GET
 
 Điền `GHN_TOKEN`, `GHN_SHOP_ID` và các cấu hình trong `.env` (tham khảo `.env.example`). Tài khoản staging cần `GHN_API_URL=https://dev-online-gateway.ghn.vn`; production dùng `https://online-gateway.ghn.vn`. Customer có thể lấy danh sách tỉnh/phường qua `GET /api/shipping/ghn/provinces` và `GET /api/shipping/ghn/provinces/:provinceId/wards`, rồi gửi `to_ward_name` và `to_province_name`; địa chỉ hành chính cũ cần thêm `to_district_name` và `is_new_to_address: false`. GHN yêu cầu token + ShopId ở header, địa chỉ, dịch vụ, kích thước kiện và `required_note` khi tạo vận đơn. Nếu chưa có credentials, đơn nội bộ vẫn được tạo với `ghn_status: not_configured`.
 
+Khi tạo vận đơn, backend lấy shop theo `GHN_SHOP_ID`, chuẩn hóa mã phường/xã (bỏ khoảng trắng) và tra danh mục GHN để gửi rõ tên phường, quận/huyện, tỉnh của người gửi với địa chỉ cũ. Shop dùng địa chỉ mới được gửi `is_new_from_address: true`, độc lập với địa chỉ người nhận. Nếu địa chỉ shop không còn tồn tại, cập nhật địa chỉ lấy hàng trên GHN đúng môi trường staging/production. Đơn đã có `ghn_status: create_failed` có thể thử lại bằng `POST /api/admin/orders/:id/shipment`, không cần đặt đơn mới.
+
 Để nhận trạng thái tự động, đặt `GHN_WEBHOOK_SECRET` trong `.env`, rồi cấu hình GHN webhook URL là `/api/webhooks/ghn/orders` với custom header `x-ghn-webhook-secret` có cùng giá trị. GHN cũng hỗ trợ admin đồng bộ trạng thái thủ công qua API shipment ở trên.
 
 Chạy `database/add_orders.sql` nếu database chưa có bảng `orders`/`order_items`. Với database đã có các bảng đó từ schema cũ, chạy một lần `database/add_ghn_order_fields.sql` để thêm trường địa chỉ GHN và khối lượng snapshot sản phẩm.
@@ -175,3 +177,90 @@ Nhóm `Publishers and book_publisher` có sẵn ví dụ API mới. Request P01 
 npm test kiểm tra CRUD và auth qua HTTP với DB giả lập. Chưa chạy tích hợp MySQL thật tại môi trường tạo file; dùng Postman để kiểm tra trên máy bạn. Server mặc định chỉ bind 127.0.0.1. Chưa có UI; route guard React cần làm khi tạo frontend. Không commit .env.
 
 Cấu trúc: routes -> controllers -> models, middleware/auth.js xác thực và phân quyền. Thêm sách cần category_id tồn tại. Xóa sách có liên kết bị chặn 409; dùng PATCH is_active=false để ngừng bán. Không có script nào xóa database cũ.
+
+
+### Ngày giao dự kiến GHN
+
+Chạy `npm run migrate:delivery` trước khi khởi động bản cập nhật (chạy lại an toàn, không sửa dữ liệu đơn cũ). Backend lưu ngày GHN trả từ API tạo vận đơn và trường `leadtime` của API chi tiết. Khách thấy ngày giao từ trạng thái `processing` (Đang chuẩn bị); `pending`/`confirmed` chỉ hiển thị thông báo chờ. Ghi nhận `processing_started_at` lần đầu chuyển sang chuẩn bị; không tự cộng số ngày cố định từ lúc xác nhận.
+
+Ngày dự kiến được làm mới khi bắt đầu chuẩn bị/đang giao, khi admin đồng bộ GHN, và khi khách mở danh sách/chi tiết đơn đang xử lý (giới hạn mỗi đơn 15 phút). Webhook đổi trạng thái làm mất hiệu lực bản lưu để lần xem tiếp theo lấy lại lịch từ GHN. Lỗi GHN không chặn xem/chuyển trạng thái đơn và giữ ngày gần nhất. Ngày quá hạn hiển thị cảnh báo chờ GHN cập nhật; đơn đã hủy/giao/hoàn hàng không hiển thị lịch giao còn hiệu lực. Hiển thị theo múi giờ Việt Nam.
+
+
+### Thanh toán COD và VNPAY
+
+Chạy `npm run migrate:payments` trước khi khởi động bản cập nhật. API tạo đơn nhận `payment_method: "cod"`; bỏ trường này mặc định COD để tương thích client cũ. `payment_method: "vnpay"` chuyển sang luồng thanh toán trực tuyến; phương thức khác trả 400. Client không được gửi giá, số tiền thu hộ, trạng thái thanh toán hoặc ngày thanh toán.
+
+Đơn COD mới có `payment_status: unpaid`. Admin xác nhận giao thành công hoặc GHN báo `delivered` qua webhook/đồng bộ sẽ ghi `paid` và `paid_at`; hủy/hoàn trước khi thu tiền chuyển `cancelled`. Sự kiện lặp không ghi lại thời điểm thu tiền và không tự hoàn tiền đã thu. Admin chỉ đánh dấu Đã giao sau khi giao và thu tiền thực tế thành công.
+
+Tiền thu hộ `cod_amount` là tiền sách sau giảm giá. `GHN_PAYMENT_TYPE_ID=2` để GHN thu thêm phí giao hàng từ người nhận, không cộng phí ship vào tiền thu hộ lần nữa. `payment_method` khác với `payment_type_id` (bên trả phí vận chuyển của GHN). Màn hình đặt đơn chọn sẵn COD và cho phép chọn VNPAY. Khách và admin thấy phương thức, trạng thái và thời điểm thanh toán.
+
+Migration gán COD cho đơn cũ, nhận diện đơn đã giao/đã hủy từ trạng thái hiện có; đơn đã giao cũ không có thời điểm thu tiền xác thực nên `paid_at` để NULL. Chạy lại migration không đổi trạng thái đã có.
+
+
+### Tích hợp VNPAY sandbox tại local
+
+Chạy `npm run migrate:vnpay` để tạo bảng lưu các lần thanh toán (chạy lại an toàn). Backend hỗ trợ các biến hiện có `vnp_TmnCode`, `vnp_HashSecret`, `vnp_Url`. Không đưa secret vào frontend hoặc commit .env. Cấu hình local:
+
+```dotenv
+VNP_RETURN_URL=http://localhost:3000/api/payments/vnpay/return
+VNP_FRONTEND_URL=http://localhost:5173
+```
+
+Khách chọn VNPAY khi đặt đơn. Backend chốt giá/giảm giá từ DB, xem trước phí GHN rồi ký URL VNPAY 2.1.0 bằng HMAC-SHA512 với số tiền nhân 100 và thời hạn 15 phút (giờ Việt Nam). VNPAY thanh toán cả tiền sách sau giảm giá và phí ship. Không tạo vận đơn trước khi thanh toán; sau khi được xác nhận trả tiền, admin xác nhận đơn và tạo vận đơn như bình thường. Đơn VNPAY có COD 0, GHN thu phí vận chuyển từ shop (payment_type_id 1) để khách không trả lần nữa. Giá đã thu và phí ship đã báo được giữ nguyên nếu phí GHN thực tế thay đổi; phần chênh lệch do cửa hàng xử lý.
+
+API dành cho khách đã đăng nhập:
+
+- `POST /api/orders/:id/payments/vnpay`: tạo/lấy lại liên kết; body rỗng. Chỉ chủ đơn được gọi, số tiền đọc từ DB.
+- `POST /api/orders/:id/payments/vnpay/check`: đối soát qua QueryDR server-to-server rồi trả đơn hiện tại. Có thể dùng ngay tại localhost; chữ ký phản hồi, mã merchant, tham chiếu, loại giao dịch và số tiền đều được kiểm tra.
+
+VNPAY gọi `GET /api/payments/vnpay/return` để đưa trình duyệt về frontend. Return chỉ hiển thị hướng dẫn; không ghi nhận đã thanh toán. Frontend tự gọi API check khi khách quay lại, hoặc khách bấm Kiểm tra thanh toán. `GET /api/payments/vnpay/ipn` là endpoint server-to-server để VNPAY xác nhận khi có domain/HTTPS công khai. Sau này đăng ký IPN URL công khai đó ở VNPAY; localhost chưa nhận được IPN từ Internet. Cả IPN và QueryDR dùng cùng luồng đối chiếu và transaction DB, chống callback lặp.
+
+Nếu VNPAY chưa có kết quả/đang lỗi, đơn giữ trạng thái chưa thanh toán, không được xác nhận hay giao. Nếu liên kết hết hạn, bấm Kiểm tra thanh toán; khi VNPAY xác nhận không tìm thấy giao dịch sau thời hạn ít nhất 2 phút, liên kết cũ được đánh dấu hết hạn để có thể tạo lại. Không tạo liên kết thứ hai khi kết quả cũ chưa rõ. Đơn chờ thanh toán vẫn giữ tồn kho/mã giảm giá; admin hủy đơn chưa trả tiền để giải phóng.
+
+Đơn đã thanh toán không tự hủy/hoàn tiền. Kết quả thành công đến sau khi đơn bị hủy hoặc một lần thanh toán thứ hai được ghi nhận sẽ chuyển sang `refund_required`, không tự gửi hàng; giao dịch nghi ngờ/đảo tiền chuyển `review_required`. Hai trạng thái này cần cửa hàng đối soát, chức năng hoàn tiền tự động chưa triển khai.
+
+Kiểm thử: `node --test tests/vnpay.service.test.js`; kiểm thử HTTP/MySQL rollback đặt `RUN_VNPAY_MYSQL_TEST=1` rồi chạy `node --test tests/vnpay.integration.test.js`.
+
+
+#### VNPAY sandbox trả QueryDR mã 99 tại local
+
+Mã 99 là lỗi đối soát của VNPAY, không có nghĩa là thanh toán thất bại. Với môi trường thử nghiệm local có thể bật `VNP_LOCAL_RETURN_CONFIRM=true` trong .env. Chế độ này chỉ được phép khi cổng thanh toán là sandbox và Return URL là localhost/127.0.0.1; dùng với production hoặc domain công khai sẽ bị từ chối cấu hình.
+
+Khi bật, backend dùng kết quả Return đã xác thực HMAC, merchant, tham chiếu, mã giao dịch và số tiền để ghi nhận kết quả trong transaction; cùng cơ chế chống trùng của IPN. Kết quả không hợp lệ không được cập nhật. Việc này dành riêng cho chạy thử local khi chưa có IPN và QueryDR sandbox lỗi; production vẫn phải xác nhận qua IPN/QueryDR theo tài liệu VNPAY. Không coi mã 99 hay lời báo thành công trên trình duyệt là bằng chứng thanh toán.
+
+Nếu khách đã thanh toán trước bản sửa, không thanh toán lại: khởi động lại backend, quay về trang kết quả giao dịch VNPAY và chọn Quay về website để gửi lại Return có chữ ký. Nếu không còn URL/kết quả có chữ ký thì cần đối soát từ VNPAY; hệ thống không tự gán Đã thanh toán cho đơn cũ.
+
+
+### Hiển thị và lọc đơn hàng của khách
+
+`GET /api/orders` hỗ trợ `status`, `payment_status`, `payment_method`, `search` (mã đơn, tối đa 100 ký tự), cùng `page`/`limit`. Bộ lọc kết hợp bằng AND, áp dụng trước khi đếm tổng/phân trang; user_id luôn lấy từ JWT. API admin danh sách đơn cũng hỗ trợ các bộ lọc này.
+
+Sau khi quay về từ VNPAY, trang đơn hàng kiểm tra kết quả từ backend rồi hiện thông báo mã đơn, số tiền và trạng thái đơn hiện tại, đồng thời tìm đúng đơn vừa thanh toán. Thanh toán thành công không tự chuyển đơn sang Đã xác nhận. Trang thể hiện tiến trình Chờ xác nhận → Đã xác nhận → Đang chuẩn bị → Đang giao → Đã giao; đơn đã hủy hiện riêng. Trang tự làm mới danh sách mỗi 30 giây khi tab đang hiển thị; có nút làm mới thủ công.
+
+
+### Dashboard quản trị
+
+Mục Dashboard mở mặc định khi quản trị viên đăng nhập, có chỉ số sản phẩm/tồn kho hiện tại, doanh thu trong kỳ, phí ship, doanh thu sau phí ship và tổng lũy kế. API `GET /api/admin/dashboard?period=month` yêu cầu token admin; customer nhận 403. Các kỳ hỗ trợ: `day`, `week` (thứ Hai), `month`, `quarter`, `year`. Có thể thêm `from=YYYY-MM-DD&to=YYYY-MM-DD` (bao gồm cả ngày kết thúc). Mặc định lần lượt 30 ngày, 12 tuần, 12 tháng, 8 quý, 5 năm; tối đa 400 điểm biểu đồ và khoảng 10 năm. Các kỳ trống trả số 0.
+
+Doanh thu chỉ tính orders.payment_status = paid, loại orders.status = cancelled và GHN cancel/returned. Tổng trước ship là total_amount đã bao gồm giảm giá; số sau ship = total_amount − shipping_fee. Đây không phải lợi nhuận vì chưa trừ giá vốn/chi phí khác. Phí ship dùng số đã lưu trên đơn, với VNPAY là phí đã báo cho khách; các điều chỉnh phí vận chuyển chưa ghi nhận không nằm trong thống kê. Ngày thống kê là paid_at theo múi giờ Việt Nam; đơn cũ thiếu paid_at dùng created_at và hiển thị cảnh báo số đơn tương ứng.
+
+Các thẻ sản phẩm/tồn kho luôn là hiện tại. Sách bán chạy tính số lượng trong đơn đủ điều kiện doanh thu và theo ngày thanh toán; phân bố trạng thái đơn tính theo ngày đặt và bao gồm cả đơn chưa thanh toán. Các truy vấn dashboard đọc trong cùng một transaction để giữ số liệu nhất quán. Không cần migration mới.
+
+Kiểm thử mốc thời gian: `node --test tests/dashboard-periods.test.js`. Kiểm thử SQL/phân quyền có rollback: đặt `RUN_DASHBOARD_MYSQL_TEST=1`, chạy `node --test tests/dashboard.integration.test.js`.
+
+
+### Hết hạn thanh toán, thông báo, lịch sử, đánh giá và yêu thích
+
+Chạy `npm run migrate:customer-features` rồi khởi động lại backend/frontend. Migration tạo order_events, notifications, wishlists; giữ bảng reviews hiện có nhưng thay 2 trigger cũ kiểm tra payments bằng điều kiện orders.payment_status=paid và đơn đã giao (trạng thái nội bộ hoặc GHN). Đánh giá mới chỉ nhận rating nguyên 1–5 và comment tối đa 2000 ký tự, một đánh giá/người/sách, được sửa/xóa của mình. Không nhận user_id/order_item_id từ client. Đánh giá công khai không trả email/user_id.
+
+Đơn VNPAY mới được giữ 17 phút (link VNPAY tối đa 15 phút + 2 phút đối soát). Tác vụ trong server chạy lần đầu sau 10 giây và mỗi 60 giây, dùng khóa MySQL chống chạy trùng; mỗi đơn chưa rõ kết quả được kiểm tra cách ít nhất 5 phút. Có thể chạy một lượt bằng `npm run expire:payments`. Tác vụ chỉ xử lý đơn pending, unpaid/failed, chưa có vận đơn. Không áp dụng COD.
+
+Hết hạn chỉ hủy sau khi không có giao dịch đang chờ hoặc VNPAY xác nhận giao dịch không tồn tại/thất bại. Hủy chuyển payment_status=expired, ghi expired_at, hoàn tồn kho, lượt flash sale và lượt dùng mã trong cùng transaction, chống hoàn trùng. Nếu QueryDR lỗi (kể cả mã 99), giữ đơn và giữ kho, tạo một thông báo cần đối soát; không suy diễn lỗi kết nối thành chưa thanh toán. Kết quả trả tiền đến sau khi đơn đã hủy được đánh dấu cần hoàn tiền theo luồng VNPAY hiện có. Hạn giữ đơn không được gia hạn vô hạn khi thử lại thanh toán.
+
+Các sự kiện tạo đơn, chuyển trạng thái, tạo vận đơn, cập nhật GHN, kết quả COD/VNPAY và hết hạn được ghi vào lịch sử cùng transaction với thay đổi chính. Thông báo trong ứng dụng được gửi cho chủ đơn, có số chưa đọc, đánh dấu từng mục/tất cả đã đọc, chọn để mở đúng đơn. Không gửi email/SMS. Đơn cũ chỉ có mốc tạo đơn được đánh dấu là dữ liệu trước khi bật lịch sử; không bịa lịch sử trạng thái cũ.
+
+API mới: `GET /api/orders/:id/history` cho chủ đơn, `GET /api/admin/orders/:id/history` cho admin; `GET /api/notifications`, `PATCH /api/notifications/:id/read`, `PATCH /api/notifications/read-all`; `GET /api/wishlist`, `GET/PUT/DELETE /api/wishlist/:bookId`; `GET /api/books/:bookId/reviews` công khai, `GET /api/books/:bookId/review-eligibility` và `PUT/DELETE /api/books/:bookId/review` cho khách đăng nhập. Các danh sách hỗ trợ page/limit. Yêu thích được lưu trên tài khoản, thêm trùng là idempotent; sách ẩn vẫn có thể bỏ yêu thích.
+
+Trên giao diện: chuông thông báo/trái tim ở thanh tài khoản và trang cửa hàng; lịch sử nằm trong chi tiết đơn; nút yêu thích và phần đánh giá nằm ở chi tiết sách; danh sách yêu thích mở lại sách để mua. Trang đơn hiển thị đếm ngược giữ đơn/trạng thái hết hạn.
+
+Kiểm thử tích hợp: đặt `RUN_CUSTOMER_FEATURES_MYSQL_TEST=1`, chạy `node --test tests/customer-features.integration.test.js`; mọi dữ liệu kiểm thử được rollback.
