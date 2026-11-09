@@ -225,46 +225,50 @@ export async function createBook(data) {
     await lockCatalog(connection);
     locked = true;
     await connection.beginTransaction();
-    const {
-      author_names = [],
-      author_ids,
-      publisher,
-      publisher_names,
-      publisher_ids,
-      ...fields
-    } = data;
-    const names = await resolveAuthorNames(data, connection);
-    const publisherNames = await resolvePublisherNames(data, connection);
-    const existing = await findMatchingBook(
-      { ...fields, author_names: names, publisher_names: publisherNames },
-      connection,
-    );
-    if (existing) {
-      const quantity = fields.stock_quantity ?? 0;
-      if (quantity < 1)
-        fail("Sách đã tồn tại. Nhập số lượng lớn hơn 0 để bổ sung.");
-      await incrementStock(connection, existing.id, quantity);
-      const book = await findBook(existing.id, connection);
-      await connection.commit();
-      return { book, action: "stock_added", quantity_added: quantity };
-    }
-    await categoryExists(connection, fields.category_id);
-    const keys = Object.keys(fields);
-    const [result] = await connection.execute(
-      `INSERT INTO books (${keys.map((key) => `\`${key}\``).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
-      Object.values(fields),
-    );
-    await replaceAuthors(connection, result.insertId, names, author_ids);
-    await replaceBookPublishers(connection, result.insertId, publisherNames);
-    const book = await findBook(result.insertId, connection);
+    const result = await createBookInTransaction(connection, data);
     await connection.commit();
-    return { book, action: "created", quantity_added: 0 };
+    return result;
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     await releaseCatalog(connection, locked);
   }
+}
+
+export async function createBookInTransaction(connection, data) {
+  const {
+    author_names = [],
+    author_ids,
+    publisher,
+    publisher_names,
+    publisher_ids,
+    ...fields
+  } = data;
+  const names = await resolveAuthorNames(data, connection);
+  const publisherNames = await resolvePublisherNames(data, connection);
+  const existing = await findMatchingBook(
+    { ...fields, author_names: names, publisher_names: publisherNames },
+    connection,
+  );
+  if (existing) {
+    const quantity = fields.stock_quantity ?? 0;
+    if (quantity < 1)
+      fail("Sách đã tồn tại. Nhập số lượng lớn hơn 0 để bổ sung.");
+    await incrementStock(connection, existing.id, quantity);
+    const book = await findBook(existing.id, connection);
+    return { book, action: "stock_added", quantity_added: quantity };
+  }
+  await categoryExists(connection, fields.category_id);
+  const keys = Object.keys(fields);
+  const [result] = await connection.execute(
+    `INSERT INTO books (${keys.map((key) => `\`${key}\``).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`,
+    Object.values(fields),
+  );
+  await replaceAuthors(connection, result.insertId, names, author_ids);
+  await replaceBookPublishers(connection, result.insertId, publisherNames);
+  const book = await findBook(result.insertId, connection);
+  return { book, action: "created", quantity_added: 0 };
 }
 
 export async function updateBook(id, data, { publisherMode = "replace" } = {}) {
@@ -382,7 +386,7 @@ export async function updateBook(id, data, { publisherMode = "replace" } = {}) {
   }
 }
 
-async function incrementStock(connection, id, quantity) {
+export async function incrementStock(connection, id, quantity) {
   const [rows] = await connection.execute(
     "SELECT stock_quantity FROM books WHERE id = ? FOR UPDATE",
     [id],
@@ -399,6 +403,7 @@ async function incrementStock(connection, id, quantity) {
     "UPDATE books SET stock_quantity = stock_quantity + ? WHERE id = ?",
     [quantity, id],
   );
+  return { stock_before: Number(rows[0].stock_quantity), stock_after: Number(rows[0].stock_quantity) + quantity };
 }
 
 export async function addBookStock(id, quantity) {

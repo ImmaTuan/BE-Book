@@ -1,3 +1,4 @@
+import { parseOrderTimeFilter } from '../order-time-filter.js';
 import { getVnpayConfig } from '../config/vnpay.js';
 import { prepareVnpayPayment } from '../services/order-vnpay.service.js';
 import { paymentIp } from '../services/vnpay.service.js';
@@ -187,7 +188,9 @@ export async function getOwnOrder(req, res) {
 
 export async function listAllOrders(req, res) {
   const page = pagination(req.query);
-  const result = await orders.listOrders({ ...page, ...validateListFilters(req.query) });
+  const time = parseOrderTimeFilter(req.query);
+  const result = await orders.listOrders({ ...page, ...validateListFilters(req.query), ...time.filters });
+  result.meta.time_range = time.range;
   res.json(result);
 }
 

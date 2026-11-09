@@ -1,4 +1,5 @@
 import * as model from '../models/category.model.js';
+import {resolveCategoryNames} from '../category-resolver.js';
 import {id,fail} from '../validation.js';
 
 function validateCategory(body){
@@ -26,4 +27,14 @@ export async function update(req,res){
 export async function remove(req,res){
  await model.deleteCategory(id(req.params.id));
  res.status(204).end();
+}
+
+export async function resolve(req,res){
+ const body=req.body;
+ if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>key!=='names')||
+    !Array.isArray(body.names)||body.names.length<1||body.names.length>500||
+    body.names.some(name=>typeof name!=='string'||!name.trim()||name.length>255)){
+   fail('names phải là danh sách từ 1 đến 500 tên thể loại, mỗi tên tối đa 255 ký tự');
+ }
+ res.json({data:resolveCategoryNames(body.names,await model.listCategories())});
 }

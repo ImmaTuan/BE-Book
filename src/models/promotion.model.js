@@ -233,3 +233,19 @@ export async function saveCoupon(input, id = null) {
     connection.release();
   }
 }
+
+export async function setPromotionActive(kind, id, active) {
+  if(!["products","coupons"].includes(kind))fail("Loại khuyến mãi không hợp lệ");
+  if(typeof active!=="boolean")fail("is_active phải là boolean");
+  const table=kind==="products"?"product_promotions":"promotions";
+  const filter=kind==="coupons"?" AND kind = 'order'":"";
+  const db=await pool.getConnection();
+  try{
+    await db.beginTransaction();
+    const [rows]=await db.execute("SELECT id FROM "+table+" WHERE id = ?"+filter+" FOR UPDATE",[id]);
+    if(!rows.length)fail("Không tìm thấy khuyến mãi",404);
+    await db.execute("UPDATE "+table+" SET is_active = ? WHERE id = ?"+filter,[Number(active),id]);
+    await db.commit();
+    return {id,is_active:Number(active)};
+  }catch(error){await db.rollback();throw error;}finally{db.release();}
+}

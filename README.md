@@ -264,3 +264,130 @@ API mới: `GET /api/orders/:id/history` cho chủ đơn, `GET /api/admin/orders
 Trên giao diện: chuông thông báo/trái tim ở thanh tài khoản và trang cửa hàng; lịch sử nằm trong chi tiết đơn; nút yêu thích và phần đánh giá nằm ở chi tiết sách; danh sách yêu thích mở lại sách để mua. Trang đơn hiển thị đếm ngược giữ đơn/trạng thái hết hạn.
 
 Kiểm thử tích hợp: đặt `RUN_CUSTOMER_FEATURES_MYSQL_TEST=1`, chạy `node --test tests/customer-features.integration.test.js`; mọi dữ liệu kiểm thử được rollback.
+
+### Đối chiếu thể loại Anh / Việt
+
+Form thêm/chỉnh sửa sách dùng một dropdown **Thể loại** với ô tìm bên trong, giống dropdown tác giả.
+Mở dropdown, nhập Khoa học, Science hoặc khoa hoc rồi chọn một kết quả; dropdown tự đóng.
+Hỗ trợ tìm một phần tên, tên Anh/Việt, tên tương đương và gợi ý; không tự chọn kết quả mơ hồ.
+Chỉ chọn ID đã có; không đổi tên lưu trữ và không tự tạo thể loại.
+
+API admin: `POST /api/admin/categories/resolve`, body:
+```json
+{"names":["Khoa học","Science","Khoa học vũ trụ"]}
+```
+Nhận 1–500 tên, tối đa 255 ký tự/tên. Kết quả giữ nguyên thứ tự:
+- `matched`: `category: {id,name}`, `matched_by: name|alias`.
+- `ambiguous`: nhiều bản ghi tương đương; cần chọn trong `candidates`.
+- `unmatched`: chưa khớp chắc chắn; gợi ý chỉ để người nhập chọn.
+
+Danh sách tương đương: `src/category-aliases.json`, dựa trên bảng dịch frontend.
+Hỗ trợ hoa/thường, khoảng trắng, dấu tiếng Việt và dấu nháy. Không dịch tên tùy ý;
+không ghép “Văn học” hay “Tiểu thuyết” thành Fiction. Nếu cả Science và Khoa học
+đã tồn tại, báo ambiguous để người nhập chọn. API chỉ đọc, dùng được để kiểm tra
+cột thể loại khi xây dựng nhập Excel. Chức năng upload Excel dùng API này để đối chiếu cột thể loại; xem mục Nhập sách / cộng kho bằng Excel bên dưới.
+
+
+### Nhập sách / cộng kho bằng Excel
+
+Chạy migration một lần:
+```powershell
+npm run migrate:book-imports
+```
+
+Trong **Sản phẩm → Nhập Excel**:
+1. Chọn **Thêm đầu sách / cộng sách trùng** hoặc **Cộng kho theo mã sách**.
+2. Tải file mẫu. Điền sheet Sach hoặc NhapKho; giữ nguyên hàng tiêu đề. Sheet HuongDan và TheLoai chỉ để tham khảo.
+3. Upload file và bấm **Kiểm tra file**.
+4. Với tác giả/NXB/thể loại chưa khớp hoặc mơ hồ, chọn bản ghi đã có hoặc chọn **Tạo mới**, sửa tên sẽ tạo nếu cần. Bấm **Kiểm tra lại**.
+5. Sửa các dòng lỗi trong file gốc rồi upload lại. Có thể tải Excel báo lỗi có số dòng để đối chiếu.
+6. Khi không còn lỗi, bấm **Xác nhận nhập toàn bộ**.
+
+Giới hạn: .xlsx, 5 MB, tối đa 500 dòng, dữ liệu chuẩn hóa tối đa 4 MB. Không nhận công thức, file mật khẩu, kiểu ngày tháng trong cột số.
+Giá dùng giá trị số như 85000; khối lượng tính gram. Tác giả/NXB ngăn cách bằng dấu ;.
+Nhập kho theo mã nhận BK-0001 hoặc ID 1. Số lượng luôn là số cộng thêm, không ghi đè tồn kho.
+Các dòng trùng sách trong cùng file phải gộp số lượng trước khi upload.
+
+Sách trùng tên + toàn bộ tập tác giả + toàn bộ tập NXB + cùng ID thể loại được cộng kho và cập nhật giá bán, năm xuất bản, URL ảnh bìa khi thay đổi. Năm/ảnh để trống không xóa giá trị cũ. Khác thể loại sẽ báo lỗi để người nhập chọn lại. Khối lượng, mô tả và trạng thái ẩn/hiện giữ nguyên. Chế độ cộng kho theo mã sách chỉ cộng số lượng. Bảng xem trước và lịch sử lưu giá trị trước/sau cho từng trường thay đổi.
+Thể loại đối chiếu Anh/Việt qua bảng tên tương đương. Danh mục chưa có chỉ được tạo khi người quản trị chọn rõ **Tạo mới**.
+Bản xem trước có hạn 24 giờ và có thể kiểm tra lại để gia hạn. Nếu danh mục thay đổi trước khi lưu, cần kiểm tra lại.
+Tồn kho thực tế được khóa khi cộng; lịch sử ghi số lượng trước/sau tại thời điểm nhập.
+Toàn bộ file lưu trong một transaction; lỗi bất kỳ dòng nào sẽ hoàn tác cả sách, danh mục mới và tồn kho.
+
+Mỗi lần nhập có mã riêng. Gửi lại xác nhận hoặc upload file giống hệt (cùng nội dung byte, cùng quản trị viên, cùng loại nhập)
+sẽ trả lần nhập cũ, không cộng kho thêm. Một đợt nhập hàng mới cần file khác; nên ghi mã phiếu/ngày nhập trong cột Ghi chú.
+Lịch sử hiển thị 20 lần gần nhất của quản trị viên hiện tại và có thể mở lại để tiếp tục hoặc xem kết quả.
+File tạm không ghi xuống ổ đĩa; dữ liệu xem trước và lịch sử lưu trong bảng book_imports.
+
+API (đều yêu cầu admin):
+- GET /api/admin/book-imports/template?mode=books|stock — tải mẫu.
+- POST /api/admin/book-imports/preview — multipart/form-data, mode và file.
+- POST /api/admin/book-imports/:id/review — JSON {"selections":{}}; ánh xạ khóa category:/author:/publisher: sang {"id":123} hoặc {"name":"Tên mới"}.
+- POST /api/admin/book-imports/:id/commit — JSON {"preview_hash":"hash từ preview"}.
+- GET /api/admin/book-imports — lịch sử riêng.
+- GET /api/admin/book-imports/:id — mở lại lần nhập.
+- GET /api/admin/book-imports/:id/errors — tải báo lỗi.
+
+Kiểm thử:
+```powershell
+npm run test:book-imports
+$env:RUN_BOOK_IMPORT_MYSQL_TEST='1'; npm run test:book-imports
+```
+Kiểm thử MySQL chỉ tạo fixture riêng bên trong transaction ngoài và rollback toàn bộ, kể cả các ca giả lập lưu thành công.
+
+Thư viện xử lý file: [ExcelJS](https://github.com/exceljs/exceljs), [Multer](https://github.com/expressjs/multer).
+
+
+### Thao tác hàng loạt trong quản trị
+
+- Sản phẩm: chọn nhiều dòng để ẩn, hiện hoặc đổi thể loại.
+- Đơn hàng: xác nhận, chuẩn bị, đang giao, đã giao, hủy; tạo hoặc đồng bộ vận đơn GHN.
+- Ưu đãi: bật/tắt nhiều chương trình giảm trực tiếp hoặc mã giảm giá.
+- Thể loại: thêm nhiều tên (mỗi dòng một tên), xóa nhiều thể loại chưa được dùng.
+- Tác giả: thêm nhiều tên.
+- Nhà xuất bản: thêm nhiều tên, xóa nhiều NXB chưa liên kết sách.
+- Nhập nhiều đầu sách/cộng kho vẫn dùng màn hình nhập Excel.
+
+Chọn từ hai dòng hoặc **Chọn trang hiện tại** để hiện thanh thao tác, chọn thao tác rồi bấm **Xác nhận** để chạy trực tiếp. Không còn bước xem lại hoặc hộp xác nhận riêng. Thanh thao tác ẩn khi còn dưới hai dòng được chọn; form Thêm nhiều tên vẫn cho xử lý một tên để hỗ trợ sửa lại mục lỗi.
+Chỉ xử lý trang/bộ lọc hiện tại, tối đa 100 mục. Chọn trang hiện tại lấy tối đa 100 dòng đầu nếu danh sách dài hơn.
+Đổi trang/bộ lọc/tab sẽ bỏ lựa chọn cũ; các mục đã chạy không tự động áp dụng cho trang mới.
+
+Các yêu cầu chạy lần lượt qua API từng mục với kiểm tra quyền và nghiệp vụ hiện tại.
+Mỗi mục có transaction riêng; mục thành công được giữ, lỗi ở mục khác không hoàn tác các mục đã thành công.
+Kết quả hiển thị tổng thành công/lỗi/bỏ qua/chưa chạy, chi tiết các mục chưa thành công nằm trong phần có thể mở rộng; giữ lựa chọn các mục chưa thành công, không tự động retry ghi dữ liệu hoặc gọi GHN.
+Lỗi 401/403 sẽ dừng các mục còn lại. Rời màn hình sẽ dừng các yêu cầu chưa bắt đầu; yêu cầu đang gửi vẫn có thể hoàn tất.
+
+Đơn hàng chỉ được chuyển bước hợp lệ, VNPAY chưa thanh toán không được xử lý tiếp; các đơn cần hoàn tiền/đối soát không được hủy.
+Không xóa được thể loại/NXB đang được tham chiếu. Tên thể loại đã khớp Anh/Việt được bỏ qua khi thêm nhiều tên.
+Tác giả/NXB trùng tên được backend báo lỗi theo từng tên.
+
+API trạng thái ưu đãi mới (admin):
+- PATCH /api/admin/promotions/products/:id/active
+- PATCH /api/admin/promotions/coupons/:id/active
+- Body: {"is_active":true} hoặc {"is_active":false}.
+Chỉ cập nhật trạng thái bật/tắt, giữ nguyên điều kiện, liên kết và số lượt sử dụng.
+
+Kiểm thử riêng:
+```powershell
+# Frontend
+node --test tests/bulk-actions.test.js
+# Backend
+node --test tests/promotion-active.test.js
+```
+
+
+### Lọc thời gian tạo đơn trong quản trị
+
+Trang Quản lý đơn hàng có bộ lọc tháng, tuần ISO, ngày và giờ cụ thể, kết hợp được với trạng thái.
+Múi giờ hiển thị/lọc là giờ Việt Nam; tuần bắt đầu thứ Hai.
+Ví dụ chọn 2026-11-09 lúc 15 giờ sẽ lấy từ 15:00:00 đến trước 16:00:00.
+Đổi bộ lọc sẽ về trang 1 và bỏ chọn các đơn hàng loạt trước đó.
+
+GET /api/admin/orders nhận thêm:
+- time_unit: month | week | day | hour.
+- time_value: lần lượt YYYY-MM | YYYY-Www | YYYY-MM-DD | YYYY-MM-DDTHH:00.
+- Bỏ cả hai tham số để lấy tất cả thời gian.
+- Ví dụ: /api/admin/orders?status=confirmed&time_unit=week&time_value=2026-W46
+- Phản hồi meta.time_range chứa from, to (không bao gồm mốc to), time_zone; null khi không lọc.
+Cả truy vấn đếm và danh sách đều dùng created_at >= from AND created_at < to.
+Ngày không tồn tại, tuần 53 không hợp lệ và giờ ngoài 00–23 trả HTTP 400.

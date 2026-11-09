@@ -1,0 +1,215 @@
+[
+  {
+    "name": "Art",
+    "aliases": [
+      "Nghệ thuật"
+    ]
+  },
+  {
+    "name": "Autobiography",
+    "aliases": [
+      "Tự truyện"
+    ]
+  },
+  {
+    "name": "Biography",
+    "aliases": [
+      "Tiểu sử"
+    ]
+  },
+  {
+    "name": "Business",
+    "aliases": [
+      "Kinh doanh"
+    ]
+  },
+  {
+    "name": "Children's",
+    "aliases": [
+      "Thiếu nhi",
+      "Children’s Books",
+      "Children's Books",
+      "Sách thiếu nhi"
+    ]
+  },
+  {
+    "name": "Christian",
+    "aliases": [
+      "Kitô giáo"
+    ]
+  },
+  {
+    "name": "Christian Fiction",
+    "aliases": [
+      "Tiểu thuyết Kitô giáo"
+    ]
+  },
+  {
+    "name": "Contemporary",
+    "aliases": [
+      "Văn học đương đại"
+    ]
+  },
+  {
+    "name": "Crime",
+    "aliases": [
+      "Tội phạm"
+    ]
+  },
+  {
+    "name": "Fantasy",
+    "aliases": [
+      "Kỳ ảo"
+    ]
+  },
+  {
+    "name": "Fiction",
+    "aliases": [
+      "Văn học hư cấu"
+    ]
+  },
+  {
+    "name": "Food and Drink",
+    "aliases": [
+      "Ẩm thực"
+    ]
+  },
+  {
+    "name": "Health",
+    "aliases": [
+      "Sức khỏe"
+    ]
+  },
+  {
+    "name": "Historical Fiction",
+    "aliases": [
+      "Tiểu thuyết lịch sử"
+    ]
+  },
+  {
+    "name": "History",
+    "aliases": [
+      "Lịch sử"
+    ]
+  },
+  {
+    "name": "Horror",
+    "aliases": [
+      "Kinh dị"
+    ]
+  },
+  {
+    "name": "Music",
+    "aliases": [
+      "Âm nhạc"
+    ]
+  },
+  {
+    "name": "Mystery",
+    "aliases": [
+      "Trinh thám"
+    ]
+  },
+  {
+    "name": "New Adult",
+    "aliases": [
+      "Văn học tuổi trưởng thành"
+    ]
+  },
+  {
+    "name": "Nonfiction",
+    "aliases": [
+      "Sách phi hư cấu",
+      "Non-fiction",
+      "Phi hư cấu"
+    ]
+  },
+  {
+    "name": "Philosophy",
+    "aliases": [
+      "Triết học"
+    ]
+  },
+  {
+    "name": "Poetry",
+    "aliases": [
+      "Thơ"
+    ]
+  },
+  {
+    "name": "Politics",
+    "aliases": [
+      "Chính trị"
+    ]
+  },
+  {
+    "name": "Religion",
+    "aliases": [
+      "Tôn giáo"
+    ]
+  },
+  {
+    "name": "Romance",
+    "aliases": [
+      "Lãng mạn"
+    ]
+  },
+  {
+    "name": "Science",
+    "aliases": [
+      "Khoa học"
+    ]
+  },
+  {
+    "name": "Science Fiction",
+    "aliases": [
+      "Khoa học viễn tưởng",
+      "Sci-fi"
+    ]
+  },
+  {
+    "name": "Self Help",
+    "aliases": [
+      "Phát triển bản thân",
+      "Self-help",
+      "Sách phát triển bản thân"
+    ]
+  },
+  {
+    "name": "Sequential Art",
+    "aliases": [
+      "Truyện tranh",
+      "Comics"
+    ]
+  },
+  {
+    "name": "Spirituality",
+    "aliases": [
+      "Tâm linh"
+    ]
+  },
+  {
+    "name": "Thriller",
+    "aliases": [
+      "Giật gân"
+    ]
+  },
+  {
+    "name": "Travel",
+    "aliases": [
+      "Du lịch"
+    ]
+  },
+  {
+    "name": "Women's Fiction",
+    "aliases": [
+      "Văn học nữ giới"
+    ]
+  },
+  {
+    "name": "Young Adult",
+    "aliases": [
+      "Văn học thanh thiếu niên"
+    ]
+  }
+]

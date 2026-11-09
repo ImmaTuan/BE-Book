@@ -18,15 +18,24 @@
     "migrate:payments": "node scripts/migrate-order-payment.js",
     "migrate:delivery": "node scripts/migrate-delivery.js",
     "seed:accounts": "node scripts/seed-accounts.js",
-    "seed:publishers": "node scripts/seed-publishers.js"
+    "seed:publishers": "node scripts/seed-publishers.js",
+    "migrate:book-imports": "node scripts/migrate-book-imports.js",
+    "test:book-imports": "node --test tests/book-workbook.test.js tests/book-import-changes.test.js tests/category-resolver.test.js tests/category-resolver-http.test.js tests/book-identity.test.js tests/books.test.js tests/book-import.integration.test.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "mysql2": "^3.14.0",
-    "dotenv": "^16.5.0",
-    "cors": "^2.8.5",
     "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.2",
-    "express-rate-limit": "^7.5.0"
+    "multer": "^2.5.0",
+    "mysql2": "^3.14.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

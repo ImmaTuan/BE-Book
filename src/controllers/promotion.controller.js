@@ -73,3 +73,12 @@ export async function bookSuggestions(req, res) {
     requires_cart_check: true,
   })) });
 }
+
+async function setActive(req,res,kind) {
+  const body=req.body;
+  if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length!==1||
+    !Object.hasOwn(body,"is_active")||typeof body.is_active!=="boolean")fail("Body chỉ nhận is_active dạng boolean");
+  res.json({message:"Đã cập nhật trạng thái khuyến mãi",data:await promotions.setPromotionActive(kind,id(req.params.id),body.is_active)});
+}
+export const setProductActive=(req,res)=>setActive(req,res,"products");
+export const setCouponActive=(req,res)=>setActive(req,res,"coupons");

@@ -150,7 +150,7 @@ export async function createOrder(userId, input) {
   }
 }
 
-export async function listOrders({ page, limit, offset, userId, status, paymentStatus, paymentMethod, search }) {
+export async function listOrders({ page, limit, offset, userId, status, paymentStatus, paymentMethod, search, createdFrom, createdTo }) {
   const filters = [];
   const values = [];
   if (userId !== undefined) { filters.push('user_id = ?'); values.push(userId); }
@@ -158,6 +158,8 @@ export async function listOrders({ page, limit, offset, userId, status, paymentS
   if (paymentStatus) { filters.push('payment_status = ?'); values.push(paymentStatus); }
   if (paymentMethod) { filters.push('payment_method = ?'); values.push(paymentMethod); }
   if (search) { filters.push('LOCATE(?, order_code) > 0'); values.push(search); }
+  if (createdFrom) { filters.push('created_at >= ?'); values.push(createdFrom); }
+  if (createdTo) { filters.push('created_at < ?'); values.push(createdTo); }
   const where = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
   const [[count]] = await pool.execute(`SELECT COUNT(*) AS total FROM orders${where}`, values);
   const [orders] = await pool.execute(
