@@ -132,7 +132,7 @@ export async function createTemplate(mode,categories) {
     ["HƯỚNG DẪN","Nội dung"],
     ["Giới hạn","500 dòng, 5 MB, chỉ nhận .xlsx. Điền dữ liệu vào sheet đầu tiên."],
     ["Số lượng","Là số lượng cộng thêm, không ghi đè tồn kho. Phải là số nguyên dương."],
-    ["Giá / Khối lượng","Dùng số như 85000 và 350, không kèm đ hay dấu phân cách hàng nghìn."],
+    ["Giá / Khối lượng","Giá bán tối thiểu 1000₫; dùng số như 85000 và 350, không kèm đ hay dấu phân cách hàng nghìn."],
     ["Nhiều tác giả / NXB","Ngăn cách bằng dấu ; (không dùng dấu phẩy)."],
     ["Thể loại","Nhận tên Anh/Việt đã khai báo. Danh mục tham khảo trong sheet TheLoai."],
     ["Danh mục mới","Phải chọn tạo mới hoặc liên kết bản ghi đã có trong màn hình xem trước."],

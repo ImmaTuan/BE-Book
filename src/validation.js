@@ -115,8 +115,8 @@ export function validateBook(body, create = false) {
         fail("publication_year từ 1 đến 9999");
       out[f] = v;
     } else if (f === "price") {
-      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1e12)
-        fail("price phải từ 0 đến 1.000 tỷ");
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 1000 || v > 1e12)
+        fail("Giá bán phải từ 1.000₫ đến 1.000 tỷ₫");
       out[f] = v;
     } else if (f === "is_active") {
       if (![true, false, 0, 1].includes(v))

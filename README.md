@@ -304,7 +304,7 @@ Trong **Sản phẩm → Nhập Excel**:
 6. Khi không còn lỗi, bấm **Xác nhận nhập toàn bộ**.
 
 Giới hạn: .xlsx, 5 MB, tối đa 500 dòng, dữ liệu chuẩn hóa tối đa 4 MB. Không nhận công thức, file mật khẩu, kiểu ngày tháng trong cột số.
-Giá dùng giá trị số như 85000; khối lượng tính gram. Tác giả/NXB ngăn cách bằng dấu ;.
+Giá bán tối thiểu 1.000₫, dùng giá trị số như 85000; khối lượng tính gram. Tác giả/NXB ngăn cách bằng dấu ;.
 Nhập kho theo mã nhận BK-0001 hoặc ID 1. Số lượng luôn là số cộng thêm, không ghi đè tồn kho.
 Các dòng trùng sách trong cùng file phải gộp số lượng trước khi upload.
 
