@@ -132,7 +132,7 @@ export async function createOwnOrder(req, res) {
     order = await orders.findOrder(order.id);
     return res.status(201).json({ message: 'Đã tạo đơn chờ thanh toán VNPAY', data: order, payment, ...(paymentError ? { payment_error: paymentError } : {}) });
   }
-  console.log('New order created', { order_id: order.id, user_id: req.user.id, ghn_enabled: ghnEnabled });
+  // console.log('New order created', { order_id: order.id, user_id: req.user.id, ghn_enabled: ghnEnabled });
   if (ghnEnabled) {
     try {
       const shipment = await ghn.createGhnShipment(order);

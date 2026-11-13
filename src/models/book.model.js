@@ -1,3 +1,4 @@
+import { publicSearchCondition, suggestBookTitles } from '../book-search.js';
 import { pool } from "../config/db.js";
 import { fail } from "../validation.js";
 import { lockCatalog, releaseCatalog } from "../catalog-lock.js";
@@ -149,8 +150,9 @@ export async function listPublicBooks({
   const where = ["b.is_active = 1"];
   const args = [];
   if (search) {
-    where.push("b.title LIKE ?");
-    args.push(`%${search}%`);
+    const condition = publicSearchCondition(search);
+    where.push(condition.sql);
+    args.push(...condition.args);
   }
   if (category_id) {
     where.push("b.category_id = ?");
@@ -192,7 +194,19 @@ export async function listPublicBooks({
      ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`,
     args,
   );
+  let search_help = null;
+  if (search && Number(count.total) === 0) {
+    const condition = publicSearchCondition(search);
+    const [[outside]] = await pool.execute('SELECT COUNT(*) AS total FROM books b WHERE b.is_active = 1 AND (' + condition.sql + ')', condition.args);
+    let suggestions = [];
+    if (Number(outside.total) === 0 && search.trim().length >= 3) {
+      const [titles] = await pool.execute('SELECT b.title FROM books b WHERE b.is_active = 1 ORDER BY b.id DESC');
+      suggestions = suggestBookTitles(search, titles);
+    }
+    search_help = { unfiltered_total: Number(outside.total), suggestions };
+  }
   return {
+    search_help,
     data: await attachPublishers(rows, pool),
     meta: { page, limit, total: count.total },
   };

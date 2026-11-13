@@ -13,4 +13,7 @@ const limiter = rateLimit({
 router.get('/ghn/provinces', limiter, controller.listGhnProvinces);
 router.get('/ghn/provinces/:provinceId/wards', limiter, controller.listGhnWards);
 
+router.get('/ghn/provinces/:provinceId/districts', limiter, controller.listGhnDistricts);
+router.get('/ghn/districts/:districtId/wards', limiter, controller.listGhnDistrictWards);
+
 export default router;

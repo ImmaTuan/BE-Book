@@ -6,10 +6,12 @@ import { decorateBookPromotions } from "../promotion-pricing.js";
 
 export async function listBooks(req, res) {
   const page = pagination(req.query);
+  const search = req.query.search ? String(req.query.search).trim() : null;
+  if (search && search.length > 160) fail('Từ khóa tìm kiếm tối đa 160 ký tự');
   const result = await books.listPublicBooks({
     ...page,
     ...parseCatalogFilters(req.query),
-    search: req.query.search ? String(req.query.search) : null,
+    search,
     category_id: req.query.category_id ? id(req.query.category_id) : null,
     publisher_id: req.query.publisher_id ? id(req.query.publisher_id) : null,
   });

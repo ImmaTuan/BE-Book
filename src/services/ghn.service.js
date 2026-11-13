@@ -1,3 +1,4 @@
+import { filterGhnAddressList, filterGhnProvinceList } from '../ghn-address-list.js';
 import { getCodAmount } from '../order-payment.js';
 import { getGhnDeliveryDate } from '../delivery-estimate.js';
 import { getGhnConfig } from '../config/ghn.js';
@@ -201,13 +202,28 @@ async function getCachedMasterData(key, path) {
   return data;
 }
 
-export function getGhnProvinces() {
-  return getCachedMasterData('provinces', '/shiip/public-api/v3/master-data/province/all?offset=0&limit=200');
+export async function getGhnProvinces(legacy = false) {
+  const provinces = legacy
+    ? await getCachedMasterData('sender:provinces', '/shiip/public-api/master-data/province')
+    : await getCachedMasterData('provinces', '/shiip/public-api/v3/master-data/province/all?offset=0&limit=200');
+  return filterGhnProvinceList(provinces);
 }
 
-export function getGhnWards(provinceId) {
-  return getCachedMasterData(
+export async function getGhnWards(provinceId) {
+  const wards = await getCachedMasterData(
     `wards:${provinceId}`,
     `/shiip/public-api/v3/master-data/ward/all-by-province-id?province_id=${provinceId}&offset=0&limit=200`,
   );
+  return filterGhnAddressList(wards, ['WardName', 'ward_name', 'name']);
+}
+
+export async function getGhnDistricts(provinceId) {
+  const districts = await getCachedMasterData('sender:districts', '/shiip/public-api/master-data/district');
+  const matching = Array.isArray(districts) ? districts.filter((item) => Number(item.ProvinceID) === provinceId) : [];
+  return filterGhnAddressList(matching, ['DistrictName', 'district_name', 'name']);
+}
+
+export async function getGhnDistrictWards(districtId) {
+  const wards = await getCachedMasterData('sender:wards:' + districtId, '/shiip/public-api/master-data/ward?district_id=' + districtId);
+  return filterGhnAddressList(wards, ['WardName', 'ward_name', 'name']);
 }
