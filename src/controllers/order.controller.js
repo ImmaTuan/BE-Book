@@ -8,6 +8,18 @@ import { getGhnDeliveryDate } from '../delivery-estimate.js';
 import * as orders from '../models/promotional-order.model.js';
 import * as ghn from '../services/ghn.service.js';
 import { fail, id, pagination } from '../validation.js';
+import { sendOrderConfirmation } from '../services/email.service.js';
+
+async function sendOrderEmail(order, email) {
+  if (!email) return false;
+  try {
+    await sendOrderConfirmation({ email, order });
+    return true;
+  } catch (error) {
+    console.error('Order confirmation email failed for order', order.id, error.message);
+    return false;
+  }
+}
 
 const orderFields = [
   'recipient_name',
@@ -130,7 +142,8 @@ export async function createOwnOrder(req, res) {
     try { payment = await prepareVnpayPayment(order, req.user.id, paymentIp(req)); }
     catch (error) { paymentError = error.expose || error.status < 500 ? error.message : 'Chưa tạo được liên kết thanh toán. Vui lòng thử lại từ đơn hàng.'; }
     order = await orders.findOrder(order.id);
-    return res.status(201).json({ message: 'Đã tạo đơn chờ thanh toán VNPAY', data: order, payment, ...(paymentError ? { payment_error: paymentError } : {}) });
+    const emailSent = await sendOrderEmail(order, req.user.email);
+    return res.status(201).json({ message: 'Đã tạo đơn chờ thanh toán VNPAY', data: order, payment, email_sent: emailSent, ...(paymentError ? { payment_error: paymentError } : {}) });
   }
   // console.log('New order created', { order_id: order.id, user_id: req.user.id, ghn_enabled: ghnEnabled });
   if (ghnEnabled) {
@@ -147,7 +160,8 @@ export async function createOwnOrder(req, res) {
     await orders.updateGhnStatus(order.id, 'not_configured');
     order = await orders.findOrder(order.id);
   }
-  res.status(201).json({ message: 'Đặt hàng thành công', data: order });
+  const emailSent = await sendOrderEmail(order, req.user.email);
+  res.status(201).json({ message: 'Đặt hàng thành công', data: order, email_sent: emailSent });
 }
 
 export async function quoteOwnOrder(req, res) {

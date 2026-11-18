@@ -391,3 +391,21 @@ GET /api/admin/orders nhận thêm:
 - Phản hồi meta.time_range chứa from, to (không bao gồm mốc to), time_zone; null khi không lọc.
 Cả truy vấn đếm và danh sách đều dùng created_at >= from AND created_at < to.
 Ngày không tồn tại, tuần 53 không hợp lệ và giờ ngoài 00–23 trả HTTP 400.
+
+### Xác minh email và email đơn hàng
+
+Đăng ký khách hàng có hai bước: `POST /api/auth/register` nhận `full_name`, `email`, `password` và gửi mã OTP 6 chữ số; `POST /api/auth/register/verify` nhận `email`, `otp` và chỉ tạo tài khoản sau khi mã hợp lệ. Có thể gửi lại bằng `POST /api/auth/register/resend` với `email`. Mã hết hạn sau 10 phút, giới hạn 5 lần nhập sai và tối thiểu 60 giây giữa hai lần gửi. Đăng nhập khách hàng và admin không yêu cầu OTP.
+
+Chạy một lần `database/add_registration_otp.sql` trên database `cua_hang_sach`. Cấu hình SMTP trong file `.env` của BE-Book:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-sender@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM_EMAIL=your-sender@gmail.com
+SMTP_FROM_NAME=Nhà sách Mộc
+```
+
+Với Gmail, `SMTP_PASSWORD` cần là App Password. Không đưa thông tin SMTP thật lên GitHub. Nếu SMTP chưa cấu hình hoặc gửi OTP thất bại, đăng ký trả lỗi và không tạo tài khoản. Khi đơn được tạo, backend gửi email xác nhận tới email đăng nhập của khách, gồm mã đơn, sách/số lượng, tổng tiền, phương thức thanh toán và địa chỉ nhận. Email lỗi không làm mất đơn; response có `email_sent: false` và giao diện báo khách xem đơn trong tài khoản. Đơn VNPAY đang chờ thanh toán được ghi rõ trong email.

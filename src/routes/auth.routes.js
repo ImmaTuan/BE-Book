@@ -1,13 +1,16 @@
 import {Router} from 'express';
 import {rateLimit} from 'express-rate-limit';
-import {login,logout,me,refresh,register} from '../controllers/auth.controller.js';
+import {login,logout,me,refresh,register,resendRegistrationOtp,verifyRegistration} from '../controllers/auth.controller.js';
 import { authenticate, requireCustomer } from '../middleware/auth.js';
 import {getOwnProfile,updateOwnProfile} from '../controllers/user.controller.js';
 const router=Router();
 const limiter=rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:true,legacyHeaders:false,message:{message:'Quá nhiều lần đăng nhập, thử lại sau'}});
+const registrationLimiter=rateLimit({windowMs:15*60*1000,limit:5,standardHeaders:true,legacyHeaders:false,message:{message:'Quá nhiều yêu cầu mã xác minh. Thử lại sau 15 phút.'}});
 router.post('/login',limiter,login);
 router.post('/admin/login',limiter,login);
-router.post('/register',limiter,register);
+router.post('/register',registrationLimiter,register);
+router.post('/register/resend',registrationLimiter,resendRegistrationOtp);
+router.post('/register/verify',registrationLimiter,verifyRegistration);
 router.post('/refresh', limiter, refresh);
 router.post('/logout', limiter, logout);
 router.get('/me',authenticate,me);
