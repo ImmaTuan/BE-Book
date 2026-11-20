@@ -6,6 +6,7 @@ import * as promotions from "../controllers/promotion.controller.js";
 
 const router = Router();
 router.get("/books", controller.listBooks);
+router.get("/books/search-suggestions", controller.popularSearchSuggestions);
 router.get("/books/:id", controller.detailBook);
 router.get("/promotions/books/:id", promotions.bookSuggestions);
 router.get("/books/:id/publishers", bookPublishers.listPublic);

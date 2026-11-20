@@ -1,6 +1,7 @@
 import { publicSearchCondition, suggestBookTitles } from '../book-search.js';
 import { pool } from "../config/db.js";
 import { fail } from "../validation.js";
+import { paidOrders } from "../order-payment.js";
 import { lockCatalog, releaseCatalog } from "../catalog-lock.js";
 import { resolveAuthorNames } from "./author.model.js";
 import {
@@ -210,6 +211,40 @@ export async function listPublicBooks({
     data: await attachPublishers(rows, pool),
     meta: { page, limit, total: count.total },
   };
+}
+
+export async function listPopularSearchSuggestions() {
+  const sales = `FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN books b ON b.id = oi.book_id
+    WHERE ${paidOrders} AND b.is_active = 1 AND b.stock_quantity > 0`;
+  const [[books], [categories]] = await Promise.all([
+    pool.execute(
+      `SELECT b.id, b.title, b.cover_url, b.price, c.name AS category_name,
+        (SELECT GROUP_CONCAT(a.name ORDER BY a.name SEPARATOR ', ')
+         FROM book_authors ba JOIN authors a ON a.id = ba.author_id
+         WHERE ba.book_id = b.id) AS authors
+       FROM (
+         SELECT b.id, SUM(oi.quantity) AS units
+         ${sales}
+         GROUP BY b.id ORDER BY units DESC, b.id DESC LIMIT 4
+       ) ranked
+       JOIN books b ON b.id = ranked.id
+       JOIN categories c ON c.id = b.category_id
+       ORDER BY ranked.units DESC, b.id DESC`,
+    ),
+    pool.execute(
+      `SELECT c.id, c.name
+       FROM (
+         SELECT b.category_id, SUM(oi.quantity) AS units
+         ${sales}
+         GROUP BY b.category_id ORDER BY units DESC, b.category_id LIMIT 4
+       ) ranked
+       JOIN categories c ON c.id = ranked.category_id
+       ORDER BY ranked.units DESC, c.id`,
+    ),
+  ]);
+  return { books, categories };
 }
 
 export async function findPublicBook(id) {

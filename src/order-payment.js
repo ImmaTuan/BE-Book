@@ -1,5 +1,7 @@
 import { fail } from './validation.js';
 
+export const paidOrders = "o.payment_status = 'paid' AND o.status <> 'cancelled' AND COALESCE(o.ghn_status, '') NOT IN ('cancel', 'returned')";
+
 export function validatePaymentMethod(value = 'cod') {
   if (!['cod', 'vnpay'].includes(value)) fail('payment_method chỉ nhận cod hoặc vnpay');
   return value;

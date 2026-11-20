@@ -1,7 +1,7 @@
 import { pool } from '../config/db.js';
 import { dashboardSeries } from '../dashboard-periods.js';
+import { paidOrders } from '../order-payment.js';
 
-const paidOrders = "o.payment_status = 'paid' AND o.status <> 'cancelled' AND COALESCE(o.ghn_status, '') NOT IN ('cancel', 'returned')";
 const paidDate = 'COALESCE(o.paid_at, o.created_at)';
 const normalize = row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value || 0)]));
 

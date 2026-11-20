@@ -19,6 +19,12 @@ export async function listBooks(req, res) {
   res.json(result);
 }
 
+export async function popularSearchSuggestions(req, res) {
+  const suggestions = await books.listPopularSearchSuggestions();
+  suggestions.books = await decorateBookPromotions(suggestions.books);
+  res.json({ data: suggestions });
+}
+
 export async function detailBook(req, res) {
   const book = await books.findPublicBook(id(req.params.id));
   if (!book) fail("Không tìm thấy sách", 404);
